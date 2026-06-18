@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "https", hostname: "fastly.picsum.photos" },
+      // Supabase Storage (uploaded listing photos).
+      { protocol: "https", hostname: "*.supabase.co" },
     ],
   },
 };

@@ -34,7 +34,7 @@ export function SearchView({
 }) {
   const [filters, setFilters] = useState<ListingFilters>(initialFilters);
   const [mobileView, setMobileView] = useState<"list" | "map">(initialView);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const [isDesktop, setIsDesktop] = useState<boolean | null>(null);
   const [searchAsMove, setSearchAsMove] = useState(true);
   const [bounds, setBounds] = useState<MapBounds | null>(null);
 
@@ -49,7 +49,7 @@ export function SearchView({
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
-  const showMap = isDesktop || mobileView === "map";
+  const showMap = isDesktop === true || mobileView === "map";
   // Geocoded center of the typed city/zip. When set, search is by proximity,
   // so a place with no listing of its own still surfaces nearby ones.
   const [center, setCenter] = useState<[number, number] | null>(initialCenter);
@@ -105,6 +105,12 @@ export function SearchView({
 
   const total = criteriaFiltered.length;
   const shownCount = visible.length;
+
+  useEffect(() => {
+    if (isDesktop === false && mobileView === "map" && total === 0) {
+      setMobileView("list");
+    }
+  }, [isDesktop, mobileView, total]);
 
   return (
     <div className="flex min-h-[calc(100vh-92px)] flex-col">

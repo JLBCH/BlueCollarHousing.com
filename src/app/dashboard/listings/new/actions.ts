@@ -25,6 +25,7 @@ export type ListingInput = {
   laundry: "in_unit" | "coin_op" | "laundromat" | "none";
   amenities: string[];
   paymentMethods: string;
+  photos: string[];
   submit: boolean; // true = submit for approval (pending), false = save draft
 };
 
@@ -97,7 +98,7 @@ export async function createListing(
     anonymize_address: input.anonymizeAddress,
     lat: center ? center[1] : null,
     lng: center ? center[0] : null,
-    photos: [],
+    photos: input.photos,
   });
 
   if (error) return { ok: false, error: error.message };

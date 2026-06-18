@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, DoorOpen, ImageUp, Save, Send } from "lucide-react";
+import { Home, DoorOpen, Save, Send } from "lucide-react";
 import {
   BUILDER_PROPERTY_TYPES,
   AMENITY_OPTIONS,
   PROPERTY_TYPE_LABELS,
 } from "@/lib/listings/types";
 import { createListing, type ListingInput } from "@/app/dashboard/listings/new/actions";
+import { PhotoUploader } from "@/components/listings/photo-uploader";
 import { cn } from "@/lib/cn";
 
 const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
@@ -91,6 +92,7 @@ export function ListingBuilder() {
     laundry: "",
     amenities: [] as string[],
     paymentMethods: "",
+    photos: [] as string[],
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | "draft" | "submit">(null);
@@ -137,6 +139,7 @@ export function ListingBuilder() {
       laundry: (f.laundry || "none") as "in_unit" | "coin_op" | "laundromat" | "none",
       amenities: f.amenities,
       paymentMethods: f.paymentMethods,
+      photos: f.photos,
       submit,
     };
     const res = await createListing(payload);
@@ -322,14 +325,12 @@ export function ListingBuilder() {
         <p className="mt-1 text-[12.5px] text-muted">No right or wrong answer · just let workers know how you prefer to be paid.</p>
       </Section>
 
-      {/* 9. Photos (upload arrives in 2.3) */}
+      {/* 9. Photos */}
       <Section n={9} title="Photos">
-        <div className="flex flex-col items-center justify-center rounded-card border border-dashed border-line bg-bg-soft py-10 text-center">
-          <ImageUp className="h-8 w-8 text-muted" />
-          <p className="mt-2 max-w-[44ch] text-[13.5px] text-muted">
-            Photo upload is being finalized. Save your listing now, and you will be able to add photos to it in the next step. At least 3 photos recommended, listings with professional photos rent faster and for more.
-          </p>
-        </div>
+        <p className="mb-3 text-[13px] text-muted">
+          More photos get more calls. We highly recommend professional photos, listings with professional photos rent faster and for more.
+        </p>
+        <PhotoUploader value={f.photos} onChange={(urls) => set("photos", urls)} />
       </Section>
 
       {error && (
