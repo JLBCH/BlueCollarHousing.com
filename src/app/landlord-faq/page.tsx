@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,15 @@ export const metadata: Metadata = {
     "Answers for property owners listing on BlueCollarHousing: how it works, pricing, tenants, payments and more.",
 };
 
-// Landlord FAQ content.
-const FAQS: { q: string; a: string[] }[] = [
+// Landlord FAQ content. `link` renders a linked call-out under the answer.
+const FAQS: { q: string; a: string[]; link?: { href: string; label: string } }[] = [
+  {
+    q: "How much does it cost to list my property?",
+    a: [
+      "Listing is a simple annual subscription with no booking fees. A Single Listing is $99 per year, additional units at the same address are $10 per year each (up to six units), and a Commercial Listing for properties with more than six units is $249 per year.",
+    ],
+    link: { href: "/list-your-property", label: "Landlord Listing Pricing" },
+  },
   {
     q: "What makes BlueCollarHousing different from vacation and corporate rental sites?",
     a: [
@@ -53,6 +61,7 @@ const FAQS: { q: string; a: string[] }[] = [
     a: [
       "Simply head to the List My Property page, choose your subscription plan and create your listing. The whole process takes about fifteen minutes. Once you submit your listing it goes through a quick review and once approved it goes live and starts working for you immediately.",
     ],
+    link: { href: "/list-your-property", label: "List My Property" },
   },
   {
     q: "What makes a good listing?",
@@ -131,7 +140,7 @@ export default function LandlordFaqPage() {
         </div>
 
         <div className="mt-10 grid gap-3">
-          {FAQS.map(({ q, a }) => (
+          {FAQS.map(({ q, a, link }) => (
             <details
               key={q}
               className="group rounded-card border border-line bg-white px-5 [&_summary::-webkit-details-marker]:hidden"
@@ -146,6 +155,14 @@ export default function LandlordFaqPage() {
                     {para}
                   </p>
                 ))}
+                {link && (
+                  <Link
+                    href={link.href}
+                    className="text-[14.5px] font-semibold text-orange hover:underline"
+                  >
+                    {link.label} →
+                  </Link>
+                )}
               </div>
             </details>
           ))}

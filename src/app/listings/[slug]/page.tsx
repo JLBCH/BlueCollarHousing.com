@@ -17,8 +17,9 @@ import { getListingBySlug } from "@/lib/listings";
 import { formatPrice, typeLabel, petLabel } from "@/lib/listings/format";
 import { Container } from "@/components/ui/container";
 import { ListingGallery } from "@/components/listings/listing-gallery";
-import { ResultsMap } from "@/components/search/results-map";
+import { LazyMap } from "@/components/search/lazy-map";
 import { RevealEmail } from "@/components/listings/reveal-email";
+import { ListingContactForm } from "@/components/listings/listing-contact-form";
 
 export async function generateMetadata({
   params,
@@ -159,7 +160,7 @@ export default async function ListingPage({
             </p>
             <div className="mt-3 h-[320px] overflow-hidden rounded-card border border-line">
               {/* strip contact fields so they aren't serialized to the client */}
-              <ResultsMap
+              <LazyMap
                 listings={[{ ...listing, contactPhone: null, contactEmail: null }]}
               />
             </div>
@@ -200,17 +201,26 @@ export default async function ListingPage({
                 </>
               ) : null}
               {encodedEmail && <RevealEmail encoded={encodedEmail} />}
-              {!telHref && !encodedEmail && (
+              {/* Contact form: the only path when no phone/email is shown, and
+                  an optional extra when they are. */}
+              {listing.allowContactForm && (
+                <ListingContactForm
+                  slug={listing.slug}
+                  title={listing.title}
+                  startOpen={!telHref && !encodedEmail}
+                />
+              )}
+              {!telHref && !encodedEmail && !listing.allowContactForm && (
                 <p className="rounded-[10px] bg-bg-soft px-4 py-3 text-center text-[13.5px] text-muted">
-                  This owner takes messages through a contact form, coming
-                  shortly.
+                  This owner has not added contact details yet.
                 </p>
               )}
             </div>
 
             <p className="mt-4 text-[12.5px] leading-relaxed text-muted">
-              Calling is the fastest way to reach the owner, right now, no forms.
-              Prefer not to share your number? A private contact form is coming.
+              {telHref
+                ? "Calling is the fastest way to reach the owner, right now, no forms. Prefer not to share your number? Send a message instead."
+                : "Send the owner a message and they will get back to you. Your details are never shared publicly."}
             </p>
           </div>
         </aside>

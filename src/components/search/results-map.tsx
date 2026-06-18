@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import type { Map as MapboxMap, Marker } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { Listing } from "@/lib/listings/types";
+import { PROPERTY_TYPE_LABELS } from "@/lib/listings/types";
 
 export type MapBounds = {
   south: number;
@@ -26,7 +27,10 @@ function markerEl(label: string, active: boolean): HTMLDivElement {
 }
 
 function popupHtml(l: Listing): string {
-  return `<div style="min-width:160px;font-family:Inter,sans-serif"><b>${l.title}</b><br>${l.publicArea} · ${priceShort(l.priceMonth)}/mo<br><a href="/listings/${l.slug}" style="color:#cf4715;font-weight:600">View listing →</a></div>`;
+  const img = l.photos[0]
+    ? `<img src="${l.photos[0]}" alt="" style="width:100%;height:108px;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px"/>`
+    : "";
+  return `<div style="width:210px;font-family:Inter,sans-serif">${img}<b style="font-size:13.5px;color:#13314f">${l.title}</b><br><span style="color:#5b6b7d;font-size:12px">${PROPERTY_TYPE_LABELS[l.propertyType]} · ${l.publicArea}</span><br><span style="font-size:13px;font-weight:600;color:#13314f">${priceShort(l.priceMonth)}/mo</span><br><a href="/listings/${l.slug}" style="color:#cf4715;font-weight:600;font-size:12.5px">View listing →</a></div>`;
 }
 
 /**
@@ -40,10 +44,13 @@ function popupHtml(l: Listing): string {
 export function ResultsMap({
   listings,
   activeSlug,
+  center,
   onBoundsChange,
 }: {
   listings: Listing[];
   activeSlug?: string;
+  /** When set ([lng, lat]), the map flies here instead of fitting all pins. */
+  center?: [number, number] | null;
   onBoundsChange?: (b: MapBounds) => void;
 }) {
   const elRef = useRef<HTMLDivElement>(null);
@@ -53,15 +60,18 @@ export function ResultsMap({
   const loadedRef = useRef(false);
   const listingsRef = useRef(listings);
   const activeRef = useRef(activeSlug);
+  const centerRef = useRef(center);
   const onBoundsRef = useRef(onBoundsChange);
   listingsRef.current = listings;
   activeRef.current = activeSlug;
+  centerRef.current = center;
   onBoundsRef.current = onBoundsChange;
 
   // init once
   useEffect(() => {
     let cancelled = false;
     let ro: ResizeObserver | null = null;
+    let io: IntersectionObserver | null = null;
     (async () => {
       const mapboxgl = (await import("mapbox-gl")).default;
       if (cancelled || !elRef.current || mapRef.current) return;
@@ -70,9 +80,13 @@ export function ResultsMap({
 
       const map = new mapboxgl.Map({
         container: elRef.current,
-        style: "mapbox://styles/mapbox/light-v11",
+        style: "mapbox://styles/mapbox/streets-v12",
+        projection: { name: "mercator" },
         center: [-96, 37.8],
         zoom: 3.2,
+        // One-finger drag scrolls the page past the map; two fingers pan it
+        // (and ctrl/cmd + scroll zooms). Keeps the map from trapping scroll.
+        cooperativeGestures: true,
       });
       mapRef.current = map;
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
@@ -88,7 +102,17 @@ export function ResultsMap({
 
       map.on("load", () => {
         loadedRef.current = true;
+        // iOS Safari can size the WebGL canvas wrong when the map inits while
+        // off-screen (the home map is below the fold), leaving it blank or
+        // pin-less until something forces a redraw. Resize on load, and again
+        // when it first scrolls into view, to make it reliable.
+        map.resize();
         renderMarkers();
+      });
+
+      // Surface tile/WebGL errors instead of failing silently.
+      map.on("error", (e) => {
+        console.warn("[map] error:", e?.error?.message ?? e);
       });
 
       ro = new ResizeObserver(() => {
@@ -96,11 +120,24 @@ export function ResultsMap({
         fitToMarkers();
       });
       ro.observe(elRef.current);
+
+      // Force a resize + refit the first time the map becomes visible.
+      io = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((en) => en.isIntersecting)) {
+            mapRef.current?.resize();
+            fitToMarkers();
+          }
+        },
+        { threshold: 0.05 },
+      );
+      io.observe(elRef.current);
     })();
 
     return () => {
       cancelled = true;
       ro?.disconnect();
+      io?.disconnect();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
       mapRef.current?.remove();
@@ -116,10 +153,30 @@ export function ResultsMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listings, activeSlug]);
 
+  // Fit to the searched location plus the nearest pins when it changes, so the
+  // user always sees where the closest places are, even if the town itself has
+  // none. (listings is already sorted nearest-first by the search view.)
+  useEffect(() => {
+    const map = mapRef.current;
+    const mapboxgl = mgRef.current;
+    if (!map || !mapboxgl || !center) return;
+    const go = () => {
+      const b = new mapboxgl.LngLatBounds();
+      b.extend(center);
+      listingsRef.current.slice(0, 6).forEach((l) => b.extend([l.lng, l.lat]));
+      map.fitBounds(b, { padding: 70, maxZoom: 11, duration: 700 });
+    };
+    if (loadedRef.current) go();
+    else map.once("load", go);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [center]);
+
   function fitToMarkers() {
     const mapboxgl = mgRef.current;
     const map = mapRef.current;
     if (!mapboxgl || !map) return;
+    // When a search center is set, stay there instead of fitting all pins.
+    if (centerRef.current) return;
     const ls = listingsRef.current;
     if (ls.length === 0) return;
     if (ls.length === 1) {
@@ -142,9 +199,11 @@ export function ResultsMap({
 
     listingsRef.current.forEach((l) => {
       const el = markerEl(priceShort(l.priceMonth), l.slug === activeRef.current);
-      const popup = new mapboxgl.Popup({ offset: 16, closeButton: true }).setHTML(
-        popupHtml(l),
-      );
+      const popup = new mapboxgl.Popup({
+        offset: 16,
+        closeButton: true,
+        maxWidth: "240px",
+      }).setHTML(popupHtml(l));
       const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([l.lng, l.lat])
         .setPopup(popup)

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { MapPin, BedDouble, PawPrint } from "lucide-react";
 import type { Listing } from "@/lib/listings/types";
 import { formatPrice, specsLine, typeLabel } from "@/lib/listings/format";
@@ -13,12 +14,12 @@ export function ListingCard({ listing }: { listing: Listing }) {
     >
       <div className="relative aspect-[3/2] overflow-hidden bg-bg-band">
         {photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={photo}
             alt={listing.title}
-            loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.04]"
           />
         ) : null}
         <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[12px] font-semibold text-navy shadow-sm">

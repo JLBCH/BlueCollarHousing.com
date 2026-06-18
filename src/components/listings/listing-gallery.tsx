@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/cn";
 
 /** Photo gallery: large active image + thumbnail strip. */
@@ -22,12 +23,14 @@ export function ListingGallery({
 
   return (
     <div>
-      <div className="overflow-hidden rounded-card bg-bg-band">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+      <div className="relative aspect-[16/10] w-full overflow-hidden rounded-card bg-bg-band">
+        <Image
           src={photos[active]}
           alt={title}
-          className="aspect-[16/10] w-full object-cover"
+          fill
+          sizes="(max-width: 1024px) 100vw, 66vw"
+          className="object-cover"
+          priority
         />
       </div>
       {photos.length > 1 && (
@@ -38,12 +41,11 @@ export function ListingGallery({
               type="button"
               onClick={() => setActive(i)}
               className={cn(
-                "h-16 w-24 overflow-hidden rounded-lg border-2 transition",
+                "relative h-16 w-24 overflow-hidden rounded-lg border-2 transition",
                 i === active ? "border-orange" : "border-transparent opacity-80 hover:opacity-100",
               )}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p} alt="" className="h-full w-full object-cover" />
+              <Image src={p} alt="" fill sizes="96px" className="object-cover" />
             </button>
           ))}
         </div>

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { Phone, Mail, Clock } from "lucide-react";
+import { Phone, Mail } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { ContactForm } from "@/components/contact-form";
+import { RevealPhone } from "@/components/reveal-phone";
 
 export const metadata: Metadata = {
   title: "Contact",
@@ -32,22 +33,17 @@ export default function ContactPage() {
           </div>
 
           <aside className="grid content-start gap-4">
-            <a
-              href="tel:18886807368"
-              className="flex items-center gap-4 rounded-card border border-line bg-white p-5 transition hover:border-navy/40"
-            >
+            <div className="flex items-center gap-4 rounded-card border border-line bg-white p-5">
               <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg bg-navy text-orange-tint">
                 <Phone className="h-5 w-5" />
               </span>
               <span>
                 <span className="block text-[13px] font-semibold uppercase tracking-wide text-muted">
-                  Call us
+                  Call or text
                 </span>
-                <span className="block text-[18px] font-bold text-navy">
-                  (888) 680-7368
-                </span>
+                <RevealPhone encoded="MTI4MTk1Nzk1NDM=" display="(281) 957-9543" />
               </span>
-            </a>
+            </div>
 
             <div className="flex items-center gap-4 rounded-card border border-line bg-white p-5">
               <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg bg-navy text-orange-tint">
@@ -63,19 +59,6 @@ export default function ContactPage() {
               </span>
             </div>
 
-            <div className="flex items-center gap-4 rounded-card border border-line bg-white p-5">
-              <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-lg bg-navy text-orange-tint">
-                <Clock className="h-5 w-5" />
-              </span>
-              <span>
-                <span className="block text-[13px] font-semibold uppercase tracking-wide text-muted">
-                  Hours
-                </span>
-                <span className="block text-[15px] font-semibold text-navy">
-                  We answer day and night
-                </span>
-              </span>
-            </div>
           </aside>
         </div>
       </Container>

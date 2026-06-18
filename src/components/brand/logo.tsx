@@ -1,27 +1,13 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
-/**
- * Brand logo: the house-and-refinery mark, blue+orange on light backgrounds
- * and white on dark. Mark-only PNGs live in /public/brand; the wordmark text
- * is typeset beside it.
- */
-export function LogoMark({
-  inverted = false,
-  className,
-}: {
-  inverted?: boolean;
-  className?: string;
-}) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={inverted ? "/brand/logo-white.png" : "/brand/logo-color.png"}
-      alt="BlueCollarHousing"
-      className={cn("h-11 w-auto", className)}
-    />
-  );
-}
+/* eslint-disable @next/next/no-img-element */
+
+// The logo is a single self-contained image (mark + wordmark + slogan baked
+// in), so we drop it in whole with no typeset text beside it. `inverted` swaps
+// to the white version for dark backgrounds (footer).
+const COLOR = "/brand/header-logo.png";
+const WHITE = "/brand/options/white.png";
 
 export function Logo({
   className,
@@ -33,28 +19,14 @@ export function Logo({
   return (
     <Link
       href="/"
-      aria-label="BlueCollarHousing home"
-      className={cn("flex items-center gap-2.5", className)}
+      aria-label="Blue Collar Housing home"
+      className="inline-flex items-center"
     >
-      <LogoMark inverted={inverted} />
-      <span className="font-display leading-[0.92]">
-        <span
-          className={cn(
-            "block text-[19px] font-bold tracking-[0.01em]",
-            inverted ? "text-white" : "text-navy",
-          )}
-        >
-          Blue Collar Housing
-        </span>
-        <span
-          className={cn(
-            "block text-[9.5px] font-semibold tracking-[0.13em]",
-            inverted ? "text-white/70" : "text-muted",
-          )}
-        >
-          QUALITY HOUSING. BUILT FOR THE JOB.
-        </span>
-      </span>
+      <img
+        src={inverted ? WHITE : COLOR}
+        alt="Blue Collar Housing"
+        className={cn("w-auto", className)}
+      />
     </Link>
   );
 }

@@ -9,8 +9,8 @@ export default function HomePage() {
     <>
       <Hero />
       <ExplainerBanner />
-      <HomeMap />
       <Quote />
+      <HomeMap />
       <AudienceSplit />
     </>
   );
