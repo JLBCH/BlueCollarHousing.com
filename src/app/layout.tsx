@@ -3,6 +3,7 @@ import { Inter, Barlow_Condensed } from "next/font/google";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
+import { SITE_URL } from "@/lib/site-url";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -18,12 +19,22 @@ const barlow = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "BlueCollarHousing · Furnished housing minutes from the job",
     template: "%s · BlueCollarHousing",
   },
   description:
     "Furnished housing built for blue-collar workers. Find a comfortable place near the job site for a turnaround, shutdown, or long-term project. No hotels.",
+  openGraph: {
+    siteName: "BlueCollarHousing",
+    type: "website",
+    locale: "en_US",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({

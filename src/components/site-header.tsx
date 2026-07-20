@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X, ChevronDown, LayoutDashboard, LogOut } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/logo";
+import { createClient } from "@/lib/supabase/client";
 
 // Tabs organized into clear groups: worker, landlord (grouped under one menu),
 // then company. The logo links home, so there's no separate Home tab.
@@ -27,6 +28,22 @@ const linkCls = "text-[14.5px] font-medium text-[#33445a] hover:text-orange";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [authed, setAuthed] = useState(false);
+
+  // Reflect sign-in state in the nav (Log In becomes Dashboard) and keep it in
+  // sync as the user logs in or out anywhere in the app.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setAuthed(!!data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setAuthed(!!session),
+    );
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  // Signed-in landlords go to their dashboard (their home base); visitors see
+  // the pricing page. The dashboard's own "New listing" button starts a build.
+  const listHref = authed ? "/dashboard" : "/list-your-property";
 
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-white">
@@ -56,6 +73,8 @@ export function SiteHeader() {
                   <Link
                     key={l.href}
                     href={l.href}
+                    // Blur on click: focus-within would pin the menu open across client-side navigation.
+                    onClick={(e) => e.currentTarget.blur()}
                     className="block px-4 py-2.5 text-[14.5px] font-medium text-[#33445a] hover:bg-bg-soft hover:text-orange"
                   >
                     {l.label}
@@ -74,13 +93,32 @@ export function SiteHeader() {
 
         {/* desktop actions */}
         <div className="hidden items-center gap-3.5 lg:flex">
-          <Link
-            href="/login"
-            className="text-[14.5px] font-semibold text-navy hover:text-orange"
-          >
-            Log In
-          </Link>
-          <Button href="/list-your-property" variant="orange">
+          {authed ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-1.5 text-[14.5px] font-semibold text-navy hover:text-orange"
+              >
+                <LayoutDashboard className="h-4 w-4" /> Dashboard
+              </Link>
+              <form action="/auth/signout" method="post">
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 text-[14.5px] font-semibold text-navy hover:text-orange"
+                >
+                  <LogOut className="h-4 w-4" /> Sign out
+                </button>
+              </form>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="text-[14.5px] font-semibold text-navy hover:text-orange"
+            >
+              Log In
+            </Link>
+          )}
+          <Button href={listHref} variant="orange">
             List My Property
           </Button>
         </div>
@@ -113,14 +151,24 @@ export function SiteHeader() {
           <MobileGroup label="Company" links={COMPANY} onNav={() => setOpen(false)} />
 
           <Link
-            href="/login"
+            href={authed ? "/dashboard" : "/login"}
             onClick={() => setOpen(false)}
             className="font-display border-b border-white/10 py-3 text-xl uppercase"
           >
-            Log In
+            {authed ? "Dashboard" : "Log In"}
           </Link>
+          {authed && (
+            <form action="/auth/signout" method="post" className="contents">
+              <button
+                type="submit"
+                className="font-display border-b border-white/10 py-3 text-left text-xl uppercase"
+              >
+                Sign out
+              </button>
+            </form>
+          )}
           <Button
-            href="/list-your-property"
+            href={listHref}
             variant="orange"
             size="lg"
             className="mt-5 w-full"

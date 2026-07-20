@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getListings } from "@/lib/listings";
 import { parseFilters } from "@/lib/listings/filter";
+import { getSearchRadiusMi } from "@/lib/settings";
 import { SearchView } from "@/components/search/search-view";
 
 export const metadata: Metadata = {
@@ -27,11 +28,12 @@ export default async function SearchPage({
   // Fetch all approved listings once; filtering happens instantly client-side.
   // Strip contact fields, search never shows them, and we don't want phone/
   // email serialized into the client payload where bots could harvest them.
-  const allListings = (await getListings({})).map((l) => ({
-    ...l,
-    contactPhone: null,
-    contactEmail: null,
-  }));
+  const [allListings, nearRadiusMi] = await Promise.all([
+    getListings({}).then((ls) =>
+      ls.map((l) => ({ ...l, contactPhone: null, contactEmail: null })),
+    ),
+    getSearchRadiusMi(),
+  ]);
 
   return (
     <SearchView
@@ -39,6 +41,7 @@ export default async function SearchPage({
       initialFilters={initialFilters}
       initialCenter={initialCenter}
       initialView={initialView}
+      nearRadiusMi={nearRadiusMi}
     />
   );
 }

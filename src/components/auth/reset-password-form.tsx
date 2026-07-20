@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
+import { authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
+import { PasswordInput } from "@/components/auth/password-input";
 
 /**
  * Sets a new password. Reached from the recovery email link, which establishes
@@ -45,11 +46,11 @@ export function ResetPasswordForm() {
     <form className="grid gap-4" onSubmit={onSubmit}>
       <div>
         <label className={authLabelCls} htmlFor="password">New password</label>
-        <input id="password" name="password" type="password" autoComplete="new-password" required className={authInputCls} placeholder="At least 8 characters" />
+        <PasswordInput id="password" name="password" autoComplete="new-password" required placeholder="At least 8 characters" />
       </div>
       <div>
         <label className={authLabelCls} htmlFor="confirm">Confirm new password</label>
-        <input id="confirm" name="confirm" type="password" autoComplete="new-password" required className={authInputCls} placeholder="Re-enter password" />
+        <PasswordInput id="confirm" name="confirm" autoComplete="new-password" required placeholder="Re-enter password" />
       </div>
       {error && <p className="text-[13.5px] font-medium text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={authSubmitCls}>

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
+import { FooterAuthLink } from "@/components/footer-auth-link";
+import { FooterAreas } from "@/components/footer-areas";
 
 const COLUMNS = [
   {
@@ -15,11 +17,11 @@ const COLUMNS = [
   },
   {
     heading: "Property Owners",
+    // "Log In" is rendered via <FooterAuthLink> (auth-aware) below.
     links: [
       { href: "/list-your-property", label: "Pricing" },
       { href: "/landlords", label: "Landlords" },
       { href: "/landlord-faq", label: "Landlord FAQ" },
-      { href: "/login", label: "Log In" },
     ],
   },
   {
@@ -57,14 +59,18 @@ export function SiteFooter() {
               <Link
                 key={l.label}
                 href={l.href}
-                className="block py-[5px] hover:text-white"
+                className="block py-2.5 hover:text-white"
               >
                 {l.label}
               </Link>
             ))}
+            {col.heading === "Property Owners" && <FooterAuthLink />}
           </div>
         ))}
       </Container>
+
+      {/* popular city pages (async server component; hidden when no cities) */}
+      <FooterAreas />
 
       {/* bottom bar */}
       <div className="border-t border-white/10">

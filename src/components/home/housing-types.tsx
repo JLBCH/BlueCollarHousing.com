@@ -8,7 +8,7 @@ const TYPES = [
   { label: "Cabins", icon: TreePine, q: "cabin" },
   { label: "RV Spaces", icon: Caravan, q: "rv" },
   { label: "Duplexes", icon: Building, q: "duplex" },
-  { label: "Mobile Homes", icon: Warehouse, q: "mobile-home" },
+  { label: "Mobile / Manufactured", icon: Warehouse, q: "mobile-home" },
   { label: "Apartments", icon: Building2, q: "apartment" },
 ];
 

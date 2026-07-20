@@ -2,15 +2,34 @@ import Link from "next/link";
 import Image from "next/image";
 import { MapPin, BedDouble, PawPrint } from "lucide-react";
 import type { Listing } from "@/lib/listings/types";
-import { formatPrice, specsLine, typeLabel } from "@/lib/listings/format";
+import { previewRate, specsLine, typeWithKind } from "@/lib/listings/format";
+import { cn } from "@/lib/cn";
 
 /** Listing card for the search results list. */
-export function ListingCard({ listing }: { listing: Listing }) {
+export function ListingCard({
+  listing,
+  active = false,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  listing: Listing;
+  /** Highlighted because its map pin is hovered. */
+  active?: boolean;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
   const photo = listing.photos[0];
   return (
     <Link
       href={`/listings/${listing.slug}`}
-      className="group flex flex-col overflow-hidden rounded-card border border-line bg-white transition-shadow hover:shadow-[0_8px_24px_rgba(16,32,48,0.1)]"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={cn(
+        "group flex flex-col overflow-hidden rounded-card border bg-white transition-shadow",
+        active
+          ? "border-orange shadow-[0_8px_24px_rgba(207,71,21,0.18)]"
+          : "border-line hover:shadow-[0_8px_24px_rgba(16,32,48,0.1)]",
+      )}
     >
       <div className="relative aspect-[3/2] overflow-hidden bg-bg-band">
         {photo ? (
@@ -23,10 +42,10 @@ export function ListingCard({ listing }: { listing: Listing }) {
           />
         ) : null}
         <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[12px] font-semibold text-navy shadow-sm">
-          {typeLabel(listing.propertyType)}
+          {typeWithKind(listing)}
         </span>
         <span className="absolute bottom-3 left-3 rounded-lg bg-navy/92 px-2.5 py-1 text-[14px] font-bold text-white">
-          {formatPrice(listing.priceMonth)}
+          {previewRate(listing)}
         </span>
       </div>
 

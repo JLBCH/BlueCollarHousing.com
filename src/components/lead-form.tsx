@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Send, CheckCircle2 } from "lucide-react";
 import { Turnstile } from "@/components/turnstile";
+import { PhoneField } from "@/components/phone-field";
 
 const inputCls =
   "w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-navy/40 placeholder:text-[#9aa6b3]";
@@ -78,19 +79,19 @@ export function LeadForm() {
         className="hidden"
         aria-hidden
       />
-      <input className={inputCls} name="name" placeholder="Your name" required />
+      <input className={inputCls} name="name" aria-label="Your name" placeholder="Your name" required />
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <input className={inputCls} name="phone" placeholder="Phone" />
-        <input className={inputCls} name="email" type="email" placeholder="Email (optional)" />
+        <PhoneField className={inputCls} placeholder="Phone" />
+        <input className={inputCls} name="email" type="email" aria-label="Email" placeholder="Email (optional)" />
       </div>
       <div className="grid gap-3.5 sm:grid-cols-[1fr_120px]">
-        <input className={inputCls} name="jobSiteCity" placeholder="Job site city" required />
-        <input className={inputCls} name="state" placeholder="State" />
+        <input className={inputCls} name="jobSiteCity" aria-label="Job site city" placeholder="Job site city" required />
+        <input className={inputCls} name="state" aria-label="State" placeholder="State" />
       </div>
       <textarea
         className={`${inputCls} min-h-[110px] resize-y`}
         name="note"
-        placeholder="Anything else? Dates, budget, type of place, number of people..."
+        aria-label="Your message" placeholder="Anything else? Dates, budget, type of place, number of people..."
       />
       <Turnstile onToken={onToken} />
       {error && <p className="text-[13px] font-medium text-red-600">{error}</p>}

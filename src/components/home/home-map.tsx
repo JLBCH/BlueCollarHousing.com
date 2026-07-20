@@ -13,8 +13,10 @@ const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
  * reliable on every device; the interactive map lives on /search.
  */
 function staticMapUrl(points: { lat: number; lng: number }[]): string {
+  // Static-image API takes markers in the URL — cap well under the URL length
+  // limit (60 pins ≈ 2KB) rather than at a number listings will outgrow.
   const markers = points
-    .slice(0, 20)
+    .slice(0, 60)
     .map((p) => `pin-s+cf4715(${p.lng.toFixed(4)},${p.lat.toFixed(4)})`)
     .join(",");
   return (

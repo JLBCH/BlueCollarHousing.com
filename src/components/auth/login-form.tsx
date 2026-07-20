@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
+import { PasswordInput } from "@/components/auth/password-input";
+import { safePath } from "@/lib/safe-path";
 
 export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const redirect = params.get("redirect") || "/dashboard";
+  const redirect = safePath(params.get("redirect"));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,7 +48,7 @@ export function LoginForm() {
             Forgot password?
           </a>
         </div>
-        <input id="password" name="password" type="password" autoComplete="current-password" required className={authInputCls} placeholder="Your password" />
+        <PasswordInput id="password" name="password" autoComplete="current-password" required placeholder="Your password" />
       </div>
       {error && <p className="text-[13.5px] font-medium text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={authSubmitCls}>

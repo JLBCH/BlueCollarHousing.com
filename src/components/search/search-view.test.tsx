@@ -32,7 +32,7 @@ vi.mock("@/components/search/location-search", () => ({
 }));
 
 describe("SearchView mobile empty results", () => {
-  it("switches from map to list when a location search has zero results", async () => {
+  it("keeps the map view (no forced switch) and overlays the empty-state CTA when a location search has zero results", async () => {
     render(
       <SearchView
         allListings={[]}
@@ -42,16 +42,27 @@ describe("SearchView mobile empty results", () => {
       />,
     );
 
+    // Regression guard: tapping/opening Map on a 0-result search must NOT snap
+    // back to the list (that was the original "Map button does nothing" bug).
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /list/i })).toHaveClass("bg-navy");
-      expect(screen.getByRole("button", { name: /map/i })).toHaveClass("bg-white");
+      expect(screen.getByRole("button", { name: /map/i })).toHaveClass("bg-navy");
+      expect(screen.getByRole("button", { name: /list/i })).toHaveClass("bg-white");
     });
 
+    // The "be the first to list" CTA is still reachable (overlaid on the map
+    // and/or in the list column), so the map is never a dead end.
     expect(
-      screen.getByRole("heading", { name: /no listings near la porte, tx yet/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/contact us for a coupon code to list your first year free/i),
-    ).toBeInTheDocument();
+      screen.getAllByText(/coupon code to list your first year free/i).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("overlays the empty state on the map even WITHOUT a location search (empty DB via ?view=map)", () => {
+    // Regression: the overlay used to require a searched center, so an empty
+    // database + the hero's ?view=map link left mobile users on a blank map
+    // with the list column's empty state hidden by CSS.
+    render(
+      <SearchView allListings={[]} initialFilters={{}} initialView="map" />,
+    );
+    expect(screen.getAllByText(/No listings yet/i).length).toBeGreaterThan(0);
   });
 });

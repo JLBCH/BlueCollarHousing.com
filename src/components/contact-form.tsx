@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Send, CheckCircle2 } from "lucide-react";
 import { Turnstile } from "@/components/turnstile";
+import { PhoneField } from "@/components/phone-field";
 
 const inputCls =
   "w-full rounded-lg border border-line bg-white px-3.5 py-2.5 text-[15px] text-ink outline-none focus:border-navy/40 placeholder:text-[#9aa6b3]";
@@ -80,14 +81,14 @@ export function ContactForm() {
         aria-hidden
       />
       <div className="grid gap-3.5 sm:grid-cols-2">
-        <input className={inputCls} name="name" placeholder="Your name" required />
-        <input className={inputCls} name="email" type="email" placeholder="Email" required />
+        <input className={inputCls} name="name" aria-label="Your name" placeholder="Your name" required />
+        <input className={inputCls} name="email" type="email" aria-label="Email" placeholder="Email" required />
       </div>
-      <input className={inputCls} name="phone" placeholder="Phone (optional)" />
+      <PhoneField className={inputCls} placeholder="Phone (optional)" />
       <textarea
         className={`${inputCls} min-h-[130px] resize-y`}
         name="message"
-        placeholder="How can we help?"
+        aria-label="Your message" placeholder="How can we help?"
         required
       />
       <Turnstile onToken={onToken} />

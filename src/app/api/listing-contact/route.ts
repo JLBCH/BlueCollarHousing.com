@@ -1,11 +1,13 @@
 import { createPublicClient } from "@/lib/supabase/public";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { sendEmail, notifyTo } from "@/lib/email/send";
 import { clean, isEmail, spamGuard } from "@/lib/forms/submit";
 
 // Per-listing contact form, for landlords who hide their phone/email. The
-// landlord's address is never exposed to the sender; the message is captured
-// and (once the admin app + service role land in M2/M3) forwarded to the
-// landlord. For now it persists to contact_inquiries and notifies the admin.
+// landlord's address is never exposed to the sender; the message is persisted to
+// contact_inquiries and forwarded to the LANDLORD (reply-to the sender), with a
+// copy to the admin inbox. (Delivery goes live once the Resend domain is set up
+// at the DNS changeover — the inquiry is stored regardless.)
 export async function POST(req: Request) {
   let body: Record<string, unknown>;
   try {
@@ -47,16 +49,42 @@ export async function POST(req: Request) {
     console.error("[listing-contact] db insert threw", e);
   }
 
-  const to = notifyTo();
-  if (to) {
-    await sendEmail({
-      to,
-      replyTo: isEmail(email) ? email : undefined,
-      subject: `New inquiry on listing: ${listingTitle || listingSlug}`,
-      text:
-        `Listing: ${listingTitle || ""} (${listingSlug})\n` +
-        `From: ${name}\nPhone: ${phone || "-"}\nEmail: ${email || "-"}\n\n${message}`,
-    });
+  // Forward to the landlord (their email isn't public, so look it up with the
+  // service-role client), and copy the admin inbox for the record.
+  // Send to the email the landlord entered ON THE LISTING (what they chose as the
+  // contact for this place), falling back to their account email if they left the
+  // listing's contact email blank.
+  let ownerEmail: string | null = null;
+  try {
+    const admin = createAdminClient();
+    const { data: listing } = await admin
+      .from("listings")
+      .select("owner_id, contact_email")
+      .eq("slug", listingSlug)
+      .single();
+    ownerEmail = listing?.contact_email || null;
+    if (!ownerEmail && listing?.owner_id) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", listing.owner_id)
+        .single();
+      ownerEmail = prof?.email || null;
+    }
+  } catch (e) {
+    console.error("[listing-contact] owner lookup failed", e);
+  }
+
+  const text =
+    `Listing: ${listingTitle || ""} (${listingSlug})\n` +
+    `From: ${name}\nPhone: ${phone || "-"}\nEmail: ${email || "-"}\n\n${message}`;
+  const subject = `New inquiry on listing: ${listingTitle || listingSlug}`;
+  const replyTo = isEmail(email) ? email : undefined;
+
+  // De-dupe if the admin inbox is also the owner.
+  const recipients = [...new Set([ownerEmail, notifyTo()].filter(Boolean) as string[])];
+  for (const to of recipients) {
+    await sendEmail({ to, replyTo, subject, text });
   }
 
   return Response.json({ ok: true });

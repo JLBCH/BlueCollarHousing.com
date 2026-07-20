@@ -1,6 +1,7 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { safePath } from "@/lib/safe-path";
 
 /**
  * Verifies an email link (signup confirmation or password recovery) and
@@ -11,7 +12,9 @@ import { createClient } from "@/lib/supabase/server";
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
-  const next = searchParams.get("next") ?? "/dashboard";
+  // `next` is attacker-controllable (it's in the email link); constrain it to a
+  // same-origin path so /auth/confirm can't be used as an open redirect.
+  const next = safePath(searchParams.get("next"));
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;

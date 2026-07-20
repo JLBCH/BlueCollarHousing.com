@@ -35,8 +35,8 @@ export default function LandlordsPage() {
           <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-orange">
             For landlords
           </p>
-          <h1 className="font-display mt-3 text-[40px] font-bold text-navy sm:text-[52px]">
-            Why BlueCollarHousing exists
+          <h1 className="font-display mt-3 text-balance text-[40px] font-bold text-navy sm:text-[52px]">
+            Why Blue Collar Housing exists
           </h1>
           <p className="mx-auto mt-4 max-w-[52ch] text-[17px] text-muted">
             Built by landlords, for landlords who understand the needs of those

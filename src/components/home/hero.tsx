@@ -8,7 +8,10 @@ const LANDLORD_IMG = "/heroes/landlord-laptop.jpg";
 
 export function Hero() {
   return (
-    <section className="relative overflow-hidden bg-navy-deep text-white">
+    <section className="relative bg-navy-deep text-white">
+      {/* Note: no `overflow-hidden` here — it would clip the search
+          autocomplete dropdown into the section below. The background image
+          divs are absolutely sized to the section, so nothing bleeds out. */}
       {/* Desktop: worker (left) and landlord (right) photos frame the center
           content; gradients blend each into the navy center for legibility. */}
       {/* The two photos meet in the middle and each fades smoothly into navy at

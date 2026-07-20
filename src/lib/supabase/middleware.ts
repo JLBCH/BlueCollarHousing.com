@@ -38,8 +38,10 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Protect the landlord dashboard.
-  if (!user && pathname.startsWith("/dashboard")) {
+  // Protect the landlord dashboard + admin area. (The pages also self-guard via
+  // getUser()/requireAdmin; this is defense-in-depth so a new protected route
+  // can't accidentally leak if it forgets its own guard.)
+  if (!user && (pathname.startsWith("/dashboard") || pathname.startsWith("/admin"))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);

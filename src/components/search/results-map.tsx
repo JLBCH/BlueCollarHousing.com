@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Map as MapboxMap, Marker } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { Maximize2, X } from "lucide-react";
 import type { Listing } from "@/lib/listings/types";
-import { PROPERTY_TYPE_LABELS } from "@/lib/listings/types";
+import { PROPERTY_TYPE_LABELS, isCommercial } from "@/lib/listings/types";
+import { previewRate, kindLabel } from "@/lib/listings/format";
 
 export type MapBounds = {
   south: number;
@@ -15,22 +18,47 @@ export type MapBounds = {
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 
-function priceShort(p: number): string {
-  return p >= 1000 ? `$${(p / 1000).toFixed(p % 1000 === 0 ? 0 : 1)}k` : `$${p}`;
+// Plain teardrop pin, no price on the marker itself (the rate shows in the
+// preview popup). Active pin is orange, the rest navy.
+// Paint a pin for its active/hover state: orange and lifted when active, navy
+// otherwise. Kept separate from creation so hover can restyle in place.
+function styleMarker(el: HTMLDivElement, active: boolean): void {
+  el.style.background = active ? "#cf4715" : "#13314f";
+  el.style.zIndex = active ? "5" : "0";
+  el.style.width = active ? "22px" : "18px";
+  el.style.height = active ? "22px" : "18px";
 }
 
-function markerEl(label: string, active: boolean): HTMLDivElement {
+function markerEl(active: boolean): HTMLDivElement {
   const el = document.createElement("div");
-  el.style.cssText = `background:${active ? "#cf4715" : "#13314f"};color:#fff;font:600 12px/1 Inter,sans-serif;padding:6px 9px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff;white-space:nowrap;cursor:pointer`;
-  el.textContent = label;
+  el.style.cssText =
+    "border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff;cursor:pointer;transition:width .12s,height .12s";
+  styleMarker(el, active);
   return el;
 }
 
+/** Escape owner-controlled strings before injecting into the popup's setHTML. */
+function esc(s: string): string {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function popupHtml(l: Listing): string {
-  const img = l.photos[0]
-    ? `<img src="${l.photos[0]}" alt="" style="width:100%;height:108px;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px"/>`
+  // Only allow http(s) image URLs; never interpolate an arbitrary value into src.
+  const safeImg = /^https?:\/\//.test(l.photos[0] ?? "") ? l.photos[0] : "";
+  const img = safeImg
+    ? `<img src="${esc(safeImg)}" alt="" style="width:100%;height:108px;object-fit:cover;border-radius:8px;display:block;margin-bottom:8px"/>`
     : "";
-  return `<div style="width:210px;font-family:Inter,sans-serif">${img}<b style="font-size:13.5px;color:#13314f">${l.title}</b><br><span style="color:#5b6b7d;font-size:12px">${PROPERTY_TYPE_LABELS[l.propertyType]} · ${l.publicArea}</span><br><span style="font-size:13px;font-weight:600;color:#13314f">${priceShort(l.priceMonth)}/mo</span><br><a href="/listings/${l.slug}" style="color:#cf4715;font-weight:600;font-size:12.5px">View listing →</a></div>`;
+  // "Entire Place" / "Private Room" (or commercial type) as a small badge, so the
+  // pin popup reads the same way as the split-screen listing cards.
+  const kind = esc(kindLabel(l));
+  const typeLabel = PROPERTY_TYPE_LABELS[l.propertyType] ?? l.propertyType;
+  const sub = isCommercial(l.propertyType) ? esc(l.publicArea) : `${esc(typeLabel)} · ${esc(l.publicArea)}`;
+  return `<div style="width:210px;font-family:Inter,sans-serif">${img}<span style="display:inline-block;background:#13314f;color:#fff;font-size:11px;font-weight:700;border-radius:9999px;padding:2px 8px;margin-bottom:5px">${kind}</span><br><b style="font-size:13.5px;color:#13314f">${esc(l.title)}</b><br><span style="color:#5b6b7d;font-size:12px">${sub}</span><br><span style="font-size:13px;font-weight:600;color:#cf4715">${esc(previewRate(l))}</span><br><a href="/listings/${encodeURIComponent(l.slug)}" style="color:#cf4715;font-weight:600;font-size:12.5px">View listing →</a></div>`;
 }
 
 /**
@@ -44,49 +72,91 @@ function popupHtml(l: Listing): string {
 export function ResultsMap({
   listings,
   activeSlug,
+  onHover,
   center,
   onBoundsChange,
+  cooperative = true,
 }: {
   listings: Listing[];
   activeSlug?: string;
+  /** Fired with a listing's slug when its pin is hovered, null on leave. */
+  onHover?: (slug: string | null) => void;
   /** When set ([lng, lat]), the map flies here instead of fitting all pins. */
   center?: [number, number] | null;
   onBoundsChange?: (b: MapBounds) => void;
+  /** Cooperative gestures (one finger scrolls page, two fingers pan). Turn OFF
+   *  where the map is the whole view (mobile map tab) so one finger pans it. */
+  cooperative?: boolean;
 }) {
-  const elRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const inlineSlotRef = useRef<HTMLDivElement | null>(null);
+  const fsSlotRef = useRef<HTMLDivElement | null>(null);
+  // The map lives in a node we create imperatively so it can be relocated
+  // between the inline slot and the full-screen (portaled) slot without React
+  // unmounting it — which would destroy the Mapbox instance and lose state.
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  if (!hostRef.current && typeof document !== "undefined") {
+    const el = document.createElement("div");
+    el.style.width = "100%";
+    el.style.height = "100%";
+    hostRef.current = el;
+  }
   const mapRef = useRef<MapboxMap | null>(null);
   const mgRef = useRef<(typeof import("mapbox-gl"))["default"] | null>(null);
   const markersRef = useRef<Marker[]>([]);
+  // slug -> pin element, so hover highlighting can restyle a single pin without
+  // tearing down and refitting every marker (which would move the map).
+  const markerElsRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const loadedRef = useRef(false);
   const listingsRef = useRef(listings);
   const activeRef = useRef(activeSlug);
   const centerRef = useRef(center);
   const onBoundsRef = useRef(onBoundsChange);
+  const onHoverRef = useRef(onHover);
   listingsRef.current = listings;
   activeRef.current = activeSlug;
   centerRef.current = center;
   onBoundsRef.current = onBoundsChange;
+  onHoverRef.current = onHover;
 
   // init once
   useEffect(() => {
     let cancelled = false;
     let ro: ResizeObserver | null = null;
     let io: IntersectionObserver | null = null;
+    let resizeRaf = 0;
+    // Resize the WebGL canvas to match its container WITHOUT touching the camera.
+    // A container resize must never re-center or re-zoom the map (that fights an
+    // in-flight user zoom and desyncs Mapbox's transform from the canvas, leaving
+    // a grey half-rendered strip). Refitting to markers is owned separately by
+    // renderMarkers / first-visible / center-change. Debounced through rAF so a
+    // burst of resize events collapses into one post-layout resize + repaint.
+    const resizeCanvas = () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = 0;
+        const m = mapRef.current;
+        if (!m) return;
+        m.resize();
+        m.triggerRepaint();
+      });
+    };
     (async () => {
       const mapboxgl = (await import("mapbox-gl")).default;
-      if (cancelled || !elRef.current || mapRef.current) return;
+      if (cancelled || !hostRef.current || mapRef.current) return;
       mgRef.current = mapboxgl;
       mapboxgl.accessToken = TOKEN ?? "";
 
       const map = new mapboxgl.Map({
-        container: elRef.current,
+        container: hostRef.current,
         style: "mapbox://styles/mapbox/streets-v12",
         projection: { name: "mercator" },
         center: [-96, 37.8],
         zoom: 3.2,
-        // One-finger drag scrolls the page past the map; two fingers pan it
-        // (and ctrl/cmd + scroll zooms). Keeps the map from trapping scroll.
-        cooperativeGestures: true,
+        // When cooperative: one-finger drag scrolls the page past the map, two
+        // fingers pan it (keeps an embedded map from trapping scroll). When the
+        // map is the whole view, this is off so one finger pans directly.
+        cooperativeGestures: cooperative,
       });
       mapRef.current = map;
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
@@ -108,6 +178,14 @@ export function ResultsMap({
         // when it first scrolls into view, to make it reliable.
         map.resize();
         renderMarkers();
+        // Apply a search center that was set before the map mounted (mobile,
+        // where the map only mounts when the Map tab is opened). Without this
+        // the map stays at the default US view after a location search.
+        flyToCenter();
+        // The canvas is occasionally sized before the container's final width is
+        // known (a layout race), leaving a grey strip where the map doesn't
+        // reach. Re-resize a few times after paint to force it to fill.
+        [60, 250, 600, 1200].forEach((ms) => setTimeout(resizeCanvas, ms));
       });
 
       // Surface tile/WebGL errors instead of failing silently.
@@ -115,11 +193,11 @@ export function ResultsMap({
         console.warn("[map] error:", e?.error?.message ?? e);
       });
 
-      ro = new ResizeObserver(() => {
-        mapRef.current?.resize();
-        fitToMarkers();
-      });
-      ro.observe(elRef.current);
+      // Container resized (mobile list/map toggle, window resize, sticky column
+      // reflow): resize the canvas only — never refit, or it snaps a mid-zoom
+      // map back to a fixed camera and grey-renders.
+      ro = new ResizeObserver(resizeCanvas);
+      ro.observe(hostRef.current);
 
       // Force a resize + refit the first time the map becomes visible.
       io = new IntersectionObserver(
@@ -131,11 +209,12 @@ export function ResultsMap({
         },
         { threshold: 0.05 },
       );
-      io.observe(elRef.current);
+      io.observe(hostRef.current);
     })();
 
     return () => {
       cancelled = true;
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
       ro?.disconnect();
       io?.disconnect();
       markersRef.current.forEach((m) => m.remove());
@@ -147,27 +226,41 @@ export function ResultsMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // re-render markers when listings / active change
+  // Re-render markers when the listing set changes (this refits the map).
   useEffect(() => {
     if (loadedRef.current) renderMarkers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listings, activeSlug]);
+  }, [listings]);
 
-  // Fit to the searched location plus the nearest pins when it changes, so the
-  // user always sees where the closest places are, even if the town itself has
-  // none. (listings is already sorted nearest-first by the search view.)
+  // Highlight changes (hover) only restyle the affected pins in place — never
+  // rebuild markers, which would close popups and refit/move the map.
   useEffect(() => {
+    if (!loadedRef.current) return;
+    markerElsRef.current.forEach((el, slug) => styleMarker(el, slug === activeSlug));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlug]);
+
+  // Fit to the searched location plus the nearest pins, so the user always sees
+  // where the closest places are, even if the town itself has none. (listings is
+  // already sorted nearest-first by the search view.) Reads centerRef so the map
+  // load handler can call it for a center that was set before the map mounted —
+  // which is the mobile case (the map only mounts when the Map tab is opened).
+  function flyToCenter() {
     const map = mapRef.current;
     const mapboxgl = mgRef.current;
-    if (!map || !mapboxgl || !center) return;
-    const go = () => {
-      const b = new mapboxgl.LngLatBounds();
-      b.extend(center);
-      listingsRef.current.slice(0, 6).forEach((l) => b.extend([l.lng, l.lat]));
-      map.fitBounds(b, { padding: 70, maxZoom: 11, duration: 700 });
-    };
-    if (loadedRef.current) go();
-    else map.once("load", go);
+    const c = centerRef.current;
+    if (!map || !mapboxgl || !c) return;
+    const b = new mapboxgl.LngLatBounds();
+    b.extend(c);
+    listingsRef.current.slice(0, 6).forEach((l) => b.extend([l.lng, l.lat]));
+    map.fitBounds(b, { padding: 70, maxZoom: 11, duration: 700 });
+  }
+
+  // When the center changes after the map is up (desktop: the map is always
+  // mounted), fly there. If the map isn't loaded yet, its load handler applies
+  // the center instead — so we don't need a (possibly null) map.once here.
+  useEffect(() => {
+    if (center && loadedRef.current) flyToCenter();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [center]);
 
@@ -196,9 +289,13 @@ export function ResultsMap({
 
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
+    markerElsRef.current.clear();
 
     listingsRef.current.forEach((l) => {
-      const el = markerEl(priceShort(l.priceMonth), l.slug === activeRef.current);
+      const el = markerEl(l.slug === activeRef.current);
+      // Hovering a pin highlights its card in the list (and vice-versa).
+      el.addEventListener("mouseenter", () => onHoverRef.current?.(l.slug));
+      el.addEventListener("mouseleave", () => onHoverRef.current?.(null));
       const popup = new mapboxgl.Popup({
         offset: 16,
         closeButton: true,
@@ -209,10 +306,88 @@ export function ResultsMap({
         .setPopup(popup)
         .addTo(map);
       markersRef.current.push(marker);
+      markerElsRef.current.set(l.slug, el);
     });
 
     fitToMarkers();
   }
 
-  return <div ref={elRef} className="h-full w-full" />;
+  // Move the persistent map node into whichever slot is active (inline, or the
+  // portaled full-screen overlay), then resize. useLayoutEffect so the move
+  // happens before paint (no flash).
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    const slot = fullscreen ? fsSlotRef.current : inlineSlotRef.current;
+    if (host && slot && host.parentElement !== slot) {
+      slot.appendChild(host);
+      mapRef.current?.resize();
+    }
+  });
+
+  // On full screen: lock the body so the page behind can't scroll (that stray
+  // scrollbar movement confused users), let plain-wheel zoom the map, and allow
+  // Escape to exit. Everything restores on the way out.
+  useEffect(() => {
+    const map = mapRef.current;
+    map?.resize();
+    if (!fullscreen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    try {
+      (map as unknown as { cooperativeGestures?: { disable?: () => void } })?.cooperativeGestures?.disable?.();
+    } catch {}
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      if (cooperative) {
+        try {
+          (map as unknown as { cooperativeGestures?: { enable?: () => void } })?.cooperativeGestures?.enable?.();
+        } catch {}
+      }
+    };
+  }, [fullscreen, cooperative]);
+
+  return (
+    <>
+      {/* Inline slot: holds the map when not full screen. */}
+      <div ref={inlineSlotRef} className="relative h-full w-full">
+        {!fullscreen && (
+          <button
+            type="button"
+            onClick={() => setFullscreen(true)}
+            aria-label="Full screen map"
+            title="Full screen"
+            className="absolute right-2.5 top-[84px] z-30 grid h-9 w-9 place-items-center rounded-md border border-line bg-white shadow-[0_2px_8px_rgba(16,32,48,0.18)] hover:bg-bg-soft"
+          >
+            <Maximize2 className="h-[18px] w-[18px] text-navy" />
+          </button>
+        )}
+      </div>
+
+      {/* Full-screen slot: portaled to <body> so it escapes the search page's
+          sticky map column (a stacking context that would otherwise trap this
+          overlay below the site header and hide the exit button). */}
+      {fullscreen &&
+        createPortal(
+          <div className="fixed inset-0 z-[9999] bg-white">
+            <div ref={fsSlotRef} className="h-full w-full" />
+            <button
+              type="button"
+              onClick={() => setFullscreen(false)}
+              aria-label="Exit full screen"
+              className="absolute left-1/2 top-3 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-line bg-white px-4 py-2 text-[14px] font-semibold text-navy shadow-[0_2px_10px_rgba(16,32,48,0.25)] hover:bg-bg-soft"
+            >
+              <X className="h-[18px] w-[18px]" /> Exit full screen
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }

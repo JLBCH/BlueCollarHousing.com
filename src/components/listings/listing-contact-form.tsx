@@ -3,9 +3,8 @@
 import { useCallback, useRef, useState } from "react";
 import { Send, CheckCircle2, MessageSquare } from "lucide-react";
 import { Turnstile } from "@/components/turnstile";
-
-const inputCls =
-  "w-full rounded-lg border border-line bg-white px-3 py-2.5 text-[14.5px] text-ink outline-none focus:border-navy/40 placeholder:text-[#9aa6b3]";
+import { PhoneField } from "@/components/phone-field";
+import { inputCls } from "@/components/ui/field";
 
 /**
  * Per-listing contact form for landlords who take messages instead of showing
@@ -100,13 +99,13 @@ export function ListingContactForm({
         className="hidden"
         aria-hidden
       />
-      <input className={inputCls} name="name" placeholder="Your name" required />
-      <input className={inputCls} name="phone" placeholder="Phone" />
-      <input className={inputCls} name="email" type="email" placeholder="Email" />
+      <input className={inputCls} name="name" aria-label="Your name" placeholder="Your name" required />
+      <PhoneField className={inputCls} placeholder="Phone" />
+      <input className={inputCls} name="email" type="email" aria-label="Email" placeholder="Email" />
       <textarea
         className={`${inputCls} min-h-[90px] resize-y`}
         name="message"
-        placeholder="Ask about availability, dates, rates..."
+        aria-label="Your message" placeholder="Ask about availability, dates, rates..."
         required
       />
       <Turnstile onToken={onToken} />

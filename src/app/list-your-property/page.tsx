@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Check } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -17,9 +19,9 @@ const PLANS = [
     price: "$99",
     unit: "per year",
     blurb:
-      "One property: house, apartment, cabin, garage apartment, camper, RV spot, room rental or any single unit.",
+      "One property or private room: house, apartment, cabin, garage apartment, camper, RV spot, room rental or any single unit.",
     addon:
-      "Got a duplex, triplex or several units at the same address? Add each additional unit for just $10 per year, up to 6 units total.",
+      "Have a duplex, triplex or multiple units at the same address? Add up to 5 additional units for just $10 each per year — 6 listings total at one address. Additional units are prorated to your primary listing renewal date and will renew at the same time.",
     featured: true,
   },
   {
@@ -27,7 +29,7 @@ const PLANS = [
     price: "$249",
     unit: "per year",
     blurb:
-      "Apartment complexes, hotels, RV parks, RV resorts or any property with more than six units.",
+      "Multifamily properties, apartment complexes, hotels, RV parks, RV resorts or any property with more than six units.",
     addon: null,
     featured: false,
   },
@@ -41,7 +43,16 @@ const INCLUDED = [
   "Edit your listing anytime",
 ];
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  // Signed-in landlords already have an account, so every "List my property"
+  // CTA across the site (which points here) should land them on their
+  // dashboard instead of the sign-up/pricing page.
+  if (user) redirect("/dashboard");
+
   return (
     <section className="py-16 sm:py-20">
       <Container>
@@ -115,7 +126,7 @@ export default function PricingPage() {
 
         {/* terms + get started */}
         <div className="mx-auto mt-8 max-w-[760px] text-center">
-          <Button href="/login" variant="orange" size="lg">
+          <Button href="/register" variant="orange" size="lg">
             Get started
           </Button>
           <p className="mx-auto mt-5 max-w-[60ch] text-[13px] leading-relaxed text-muted">

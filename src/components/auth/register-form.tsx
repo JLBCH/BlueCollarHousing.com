@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { UserPlus, MailCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
+import { PasswordInput } from "@/components/auth/password-input";
+import { formatPhone } from "@/lib/format-phone";
 
 export function RegisterForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [needsVerify, setNeedsVerify] = useState(false);
+  const [phone, setPhone] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -19,6 +22,10 @@ export function RegisterForm() {
     const password = String(fd.get("password"));
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (phone.replace(/\D/g, "").length < 10) {
+      setError("Please enter a valid phone number.");
       return;
     }
     setBusy(true);
@@ -36,6 +43,14 @@ export function RegisterForm() {
     });
     if (error) {
       setError(error.message);
+      setBusy(false);
+      return;
+    }
+    // Supabase returns a privacy "decoy" for an already-registered email: no
+    // error, no session, and an empty identities array. Without this check the
+    // form would falsely say "check your email" and silently create nothing.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setError("An account with this email already exists. Try signing in instead.");
       setBusy(false);
       return;
     }
@@ -70,7 +85,7 @@ export function RegisterForm() {
       </div>
       <div>
         <label className={authLabelCls} htmlFor="phone">Phone</label>
-        <input id="phone" name="phone" type="tel" autoComplete="tel" className={authInputCls} placeholder="(555) 123-4567" />
+        <input id="phone" name="phone" type="tel" inputMode="tel" autoComplete="tel" required className={authInputCls} placeholder="(555) 123-4567" value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} />
       </div>
       <div>
         <label className={authLabelCls} htmlFor="email">Email</label>
@@ -78,7 +93,7 @@ export function RegisterForm() {
       </div>
       <div>
         <label className={authLabelCls} htmlFor="password">Password</label>
-        <input id="password" name="password" type="password" autoComplete="new-password" required className={authInputCls} placeholder="At least 8 characters" />
+        <PasswordInput id="password" name="password" autoComplete="new-password" required placeholder="At least 8 characters" />
       </div>
       {error && <p className="text-[13.5px] font-medium text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={authSubmitCls}>
