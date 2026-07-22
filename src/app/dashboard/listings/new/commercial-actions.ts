@@ -6,6 +6,7 @@ import { geocodeAddress } from "@/lib/geo";
 import { BUCKET, storagePath } from "@/lib/listings/storage";
 import { slugify } from "@/lib/listings/slug";
 import { scopeOwner } from "@/lib/listings/scope-owner";
+import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
 import type { CommercialType } from "@/lib/listings/commercial-forms";
 
 export type CommercialInput = {
@@ -101,6 +102,9 @@ export async function createCommercialListing(input: CommercialInput): Promise<R
   });
   if (error) return { ok: false, error: error.message };
 
+  if (input.submit) {
+    await notifyAdminListingSubmitted({ title: input.name, submitterEmail: user.email, isCommercial: true });
+  }
   revalidatePath("/dashboard");
   return { ok: true };
 }
@@ -198,6 +202,9 @@ export async function updateCommercialListing(
     .filter((p): p is string => !!p);
   if (removed.length) await supabase.storage.from(BUCKET).remove(removed);
 
+  if (input.submit) {
+    await notifyAdminListingSubmitted({ title: input.name, submitterEmail: user.email, isCommercial: true });
+  }
   revalidatePath("/dashboard");
   return { ok: true };
 }

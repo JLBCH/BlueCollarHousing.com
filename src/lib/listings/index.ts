@@ -38,6 +38,8 @@ type ListingRow = {
   pet_policy: Listing["petPolicy"];
   payment_methods: string | null;
   room_details: Listing["roomDetails"] | null;
+  laundry: string | null;
+  internet: string | null;
   city: string;
   state: string;
   zip: string;
@@ -94,6 +96,8 @@ function mapRow(r: ListingRow): Listing {
     rates: r.rates ?? undefined,
     paymentMethods: r.payment_methods ?? undefined,
     roomDetails: r.room_details ?? undefined,
+    laundry: (r.laundry as Listing["laundry"]) ?? undefined,
+    internet: r.internet ?? undefined,
     commercialDetails: r.commercial_details ?? {},
   };
 }

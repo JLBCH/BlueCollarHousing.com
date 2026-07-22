@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { getListingBySlug } from "@/lib/listings";
 import { previewRate, typeLabel, petLabel, kindLabel } from "@/lib/listings/format";
+import { listingExtraOffers } from "@/lib/listings/offers";
 import { isCommercial } from "@/lib/listings/types";
 import type { CommercialType } from "@/lib/listings/commercial-forms";
 import { Container } from "@/components/ui/container";
@@ -258,21 +259,30 @@ export default async function ListingPage({
             </section>
           )}
 
-          {listing.amenities.length > 0 && (
-            <section className="border-b border-line py-6">
-              <h2 className="font-display text-[22px] font-bold text-navy">
-                What this place offers
-              </h2>
-              <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {listing.amenities.map((a) => (
-                  <li key={a} className="flex items-center gap-2.5 text-[14.5px] text-ink">
-                    <Check className="h-[18px] w-[18px] text-orange" strokeWidth={2.4} />
-                    {a}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {(() => {
+            // Laundry/internet live in their own columns, not amenities[] —
+            // fold them in here so the builder's choices actually show up.
+            const offers = [
+              ...listingExtraOffers({ laundry: listing.laundry, internet: listing.internet }),
+              ...listing.amenities,
+            ];
+            if (offers.length === 0) return null;
+            return (
+              <section className="border-b border-line py-6">
+                <h2 className="font-display text-[22px] font-bold text-navy">
+                  What this place offers
+                </h2>
+                <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {offers.map((a) => (
+                    <li key={a} className="flex items-center gap-2.5 text-[14.5px] text-ink">
+                      <Check className="h-[18px] w-[18px] text-orange" strokeWidth={2.4} />
+                      {a}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })()}
 
           {listing.listingKind === "room" && listing.roomDetails && (() => {
             const rd = listing.roomDetails;

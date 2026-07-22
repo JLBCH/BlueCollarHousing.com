@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/lib/geo";
 import { slugify } from "@/lib/listings/slug";
 import { isCommercial } from "@/lib/listings/types";
+import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
 
 const normAddr = (s?: string | null) => (s ?? "").trim().toLowerCase();
 
@@ -188,6 +189,9 @@ export async function createListing(
   });
 
   if (error) return { ok: false, error: error.message };
+  if (input.submit) {
+    await notifyAdminListingSubmitted({ title: input.title, submitterEmail: user.email });
+  }
   revalidatePath("/dashboard");
   return { ok: true, slug };
 }

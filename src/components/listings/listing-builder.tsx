@@ -861,16 +861,24 @@ export function ListingBuilder({
         <PhotoUploader value={f.photos} onChange={(urls) => set("photos", urls)} />
       </Section>
 
-      {error && (
-        <p className="whitespace-pre-line rounded-lg bg-red-50 px-3.5 py-2.5 text-[14px] font-medium text-red-600">{error}</p>
-      )}
-
-      <div className="sticky bottom-0 flex flex-col gap-3 rounded-card border border-line bg-white p-4 shadow-[0_-4px_16px_rgba(16,32,48,0.06)] sm:flex-row sm:items-center sm:justify-end">
-        {currentStatus === "approved" && (
-          <p className="mr-auto text-[13px] text-muted">
-            This listing is live. Saving updates it right away — no re-approval needed.
+      {/* Errors live INSIDE the sticky footer so a failed submit is always
+          visible next to the button — landlords were missing an error rendered
+          far down the (long) form and not scrolling to it. */}
+      <div className="sticky bottom-0 flex flex-col gap-3 rounded-card border border-line bg-white p-4 shadow-[0_-4px_16px_rgba(16,32,48,0.06)]">
+        {error && (
+          <p
+            role="alert"
+            className="whitespace-pre-line rounded-lg bg-red-50 px-3.5 py-2.5 text-[14px] font-medium text-red-600"
+          >
+            {error}
           </p>
         )}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+          {currentStatus === "approved" && (
+            <p className="mr-auto text-[13px] text-muted">
+              This listing is live. Saving updates it right away — no re-approval needed.
+            </p>
+          )}
         <button
           type="button"
           disabled={busy !== null}
@@ -909,6 +917,7 @@ export function ListingBuilder({
             .
           </p>
         )}
+        </div>
       </div>
     </div>
   );

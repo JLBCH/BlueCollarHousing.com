@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/lib/geo";
 import { BUCKET, storagePath } from "@/lib/listings/storage";
 import { scopeOwner } from "@/lib/listings/scope-owner";
+import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
 import type { ListingInput } from "@/app/dashboard/listings/new/actions";
 
 type Result = { ok: boolean; error?: string };
@@ -133,6 +134,11 @@ export async function updateListing(
     .filter((p): p is string => !!p);
   if (removedPaths.length) await supabase.storage.from(BUCKET).remove(removedPaths);
 
+  // Tell the admin when this save is a submit-for-approval (resubmit included).
+  if (input.submit) {
+    await notifyAdminListingSubmitted({ title: input.title, submitterEmail: user.email });
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/"); // a live listing's edit (e.g. address) can move its map pin
   return { ok: true };
@@ -241,10 +247,13 @@ export async function setListingStatus(
     .update({ status })
     .eq("id", id)
     .eq("owner_id", user.id)
-    .select("id");
+    .select("id, title");
   if (error) return { ok: false, error: error.message };
   if (!data || data.length === 0) {
     return { ok: false, error: "We could not find that listing under your account." };
+  }
+  if (status === "pending") {
+    await notifyAdminListingSubmitted({ title: data[0].title, submitterEmail: user.email });
   }
   revalidatePath("/dashboard");
   return { ok: true };
