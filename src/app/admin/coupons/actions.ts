@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import type Stripe from "stripe";
 import { adminAction } from "@/lib/admin";
 import { stripe, customerIdForEmail } from "@/lib/stripe";
+import { sendEmail } from "@/lib/email/send";
+import { buildCouponNotification } from "@/lib/email/coupon-notify";
 
 type Result = { ok: boolean; error?: string };
 
@@ -61,6 +63,20 @@ export async function createPromo(input: {
     if (email) params.customer = await customerIdForEmail(email);
     if (expiresUnix) params.expires_at = expiresUnix;
     await stripe.promotionCodes.create(params);
+    // Email-restricted codes are made FOR someone — tell them it exists so the
+    // admin doesn't have to relay it by hand. Best-effort: sendEmail never
+    // throws, and the code is created either way.
+    if (email) {
+      await sendEmail({
+        to: email,
+        ...buildCouponNotification({
+          code,
+          percentOff: pct,
+          duration: input.duration,
+          expiresAt: input.expiresAt,
+        }),
+      });
+    }
     revalidatePath("/admin/coupons");
     return { ok: true };
   } catch (e) {

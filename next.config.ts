@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
       { source: "/search.php", destination: "/search", permanent: true },
       { source: "/login.php", destination: "/login", permanent: true },
       { source: "/signup.php", destination: "/register", permanent: true },
+      // Old forgot/reset-password URLs (a DDG sitelink still points at one).
+      { source: "/forgot_password.php", destination: "/forgot-password", permanent: true },
+      { source: "/forgotpassword.php", destination: "/forgot-password", permanent: true },
+      { source: "/reset_password.php", destination: "/forgot-password", permanent: true },
+      { source: "/password.php", destination: "/forgot-password", permanent: true },
       // Catch-all for any other legacy .php URL still in a search index.
       { source: "/:path(.*\\.php)", destination: "/", permanent: true },
     ];
