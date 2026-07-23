@@ -255,11 +255,14 @@ export async function duplicateListing(id: string): Promise<Result> {
   }
   source.photos = copiedPhotos;
 
+  // No "(copy)" suffix: the title is public, and a duplicate that gets approved
+  // with it still attached reads as a mistake on the live site. The dashboard
+  // already tells the two apart — the copy lands as a Draft, the original stays
+  // Live — and the slug is unique regardless.
   const { error } = await supabase.from("listings").insert({
     ...source,
     owner_id: user.id,
     slug: `${baseSlug || "listing"}-${crypto.randomUUID().slice(0, 6)}`,
-    title: `${source.title} (copy)`,
     status: "draft",
   });
   if (error) return { ok: false, error: error.message };
