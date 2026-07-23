@@ -45,12 +45,32 @@ describe("submit consent line (covers free/comped listings)", () => {
     render(<ListingActions id="x" status="draft" />);
     expect(screen.getByRole("button", { name: /Submit for approval/ })).toBeDefined();
     const note = screen.getByText(SUBMIT_CONSENT);
-    expect(note.querySelector('a[href="/terms"]')?.textContent).toMatch(/Terms and Conditions/);
+    expect(note.querySelector('a[href="/terms"]')?.textContent).toMatch(/Terms of Use/);
   });
 
   it("shows on rejected listings (resubmit path)", () => {
     render(<ListingActions id="x" status="rejected" />);
     expect(screen.getByText(SUBMIT_CONSENT)).toBeDefined();
+  });
+});
+
+// Terms 5.3 requires the payment authorization disclosure to sit with the pay
+// click, not only at submission.
+const PAY_CONSENT = /By paying you agree to our/;
+
+describe("payment consent line", () => {
+  it("shows next to Pay to publish, naming auto-renewal and how to cancel", () => {
+    render(<ListingActions id="x" status="approved" subscriptionStatus="none" />);
+    expect(screen.getByRole("button", { name: /Pay to publish/ })).toBeDefined();
+    const note = screen.getByText(PAY_CONSENT);
+    expect(note.querySelector('a[href="/terms"]')?.textContent).toMatch(/Terms of Use/);
+    expect(note.textContent).toMatch(/automatic annual renewal/);
+    expect(note.textContent).toMatch(/[Cc]ancel any time/);
+  });
+
+  it("is absent on a draft (nothing to pay for yet)", () => {
+    render(<ListingActions id="x" status="draft" />);
+    expect(screen.queryByText(PAY_CONSENT)).toBeNull();
   });
 
   it("hidden once pending or live (nothing left to submit)", () => {

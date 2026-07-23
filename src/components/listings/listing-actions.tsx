@@ -161,16 +161,19 @@ export function ListingActions({
         {confirmDelete ? (
           <span className="inline-flex max-w-[280px] flex-col items-end gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[12px] text-red-700">
             <span className="text-right font-medium">
+              {/* Terms 6.2 requires telling the owner what happens to the
+                  subscription before they confirm a delete. */}
               {additionalUnits > 0 ? (
                 <>
                   <strong>This is your primary listing.</strong> Deleting it will also permanently
                   delete its {additionalUnits} additional unit{additionalUnits === 1 ? "" : "s"} at
-                  this address. This can&apos;t be undone.
+                  this address, and cancel the automatic renewal for all of them. You won&apos;t be
+                  refunded for the rest of the term. This can&apos;t be undone.
                 </>
               ) : bs === "awaiting_payment" && expiresInDays != null ? (
                 `This approval expires in ${Math.max(expiresInDays, 0)} day${expiresInDays === 1 ? "" : "s"}. Once deleted it's gone — no refunds.`
               ) : bs === "live" || bs === "past_due" ? (
-                "Once deleted it's gone — you won't be refunded for the rest of your subscription."
+                "Deleting cancels your automatic renewal, so you won't be charged again. You won't be refunded for the rest of the term you've paid for, and this can't be undone."
               ) : (
                 "Once deleted it's gone — this can't be undone."
               )}
@@ -204,9 +207,22 @@ export function ListingActions({
         <p className="text-right text-[11px] text-muted">
           By submitting your listing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-navy">
-            Terms and Conditions
+            Terms of Use
           </Link>
           .
+        </p>
+      )}
+      {/* Terms 5.3: the authorization disclosure has to sit with the payment
+          click. Stripe Checkout shows the exact amount and renewal date on the
+          next screen; this states the annual auto-renew and how to stop it. */}
+      {(bs === "awaiting_payment" || bs === "lapsed") && !PAYMENTS_PAUSED && (
+        <p className="text-right text-[11px] text-muted">
+          By paying you agree to our{" "}
+          <Link href="/terms" className="underline hover:text-navy">
+            Terms of Use
+          </Link>{" "}
+          and authorize this listing fee and its automatic annual renewal at the price shown
+          at checkout. Cancel any time from this dashboard before the renewal date.
         </p>
       )}
       {error && <p className="text-[12px] font-medium text-red-600">{error}</p>}

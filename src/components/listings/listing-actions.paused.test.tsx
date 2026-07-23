@@ -38,6 +38,11 @@ describe("payments paused (pre-launch gate)", () => {
     expect(screen.getByText(/Paid listings open soon/)).toBeDefined();
   });
 
+  it("hides the pay-consent line too (no payment click to authorize)", () => {
+    render(<ListingActions id="x" status="approved" subscriptionStatus="none" />);
+    expect(screen.queryByText(/By paying you agree to our/)).toBeNull();
+  });
+
   it("leaves non-payment actions alone (submit still there on drafts)", () => {
     render(<ListingActions id="x" status="draft" />);
     expect(screen.getByRole("button", { name: /Submit for approval/ })).toBeDefined();

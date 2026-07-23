@@ -6,6 +6,7 @@ import { geocodeAddress } from "@/lib/geo";
 import { BUCKET, storagePath } from "@/lib/listings/storage";
 import { scopeOwner } from "@/lib/listings/scope-owner";
 import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
+import { stripe } from "@/lib/stripe";
 import type { ListingInput } from "@/app/dashboard/listings/new/actions";
 
 type Result = { ok: boolean; error?: string };
@@ -151,11 +152,41 @@ export async function deleteListing(id: string): Promise<Result> {
   // Admins may delete any listing; owners only their own.
   const ownerId = await scopeOwner(supabase, user.id);
 
-  // Remove the listing's photos from storage first.
-  let rowQ = supabase.from("listings").select("photos").eq("id", id);
+  let rowQ = supabase
+    .from("listings")
+    .select("photos, stripe_subscription_id")
+    .eq("id", id);
   if (ownerId) rowQ = rowQ.eq("owner_id", ownerId);
   const { data: row } = await rowQ.single();
-  const paths = ((row?.photos as string[] | null) ?? [])
+
+  // Child units are cascade-deleted by the FK, so gather them here — their
+  // photos and subscriptions have to be cleaned up too or we silently keep
+  // billing for units whose rows are about to vanish.
+  const { data: children } = await supabase
+    .from("listings")
+    .select("photos, stripe_subscription_id")
+    .eq("parent_listing_id", id);
+
+  const doomed = [row, ...(children ?? [])].filter(Boolean) as {
+    photos: string[] | null;
+    stripe_subscription_id: string | null;
+  }[];
+
+  // Terms 6.2: deleting a listing cancels its automatic renewal. Cancel BEFORE
+  // the row goes (afterwards we'd have no record of which subscription to end),
+  // best-effort so a Stripe outage can't block the delete.
+  for (const l of doomed) {
+    if (!l.stripe_subscription_id) continue;
+    try {
+      await stripe.subscriptions.cancel(l.stripe_subscription_id);
+    } catch (e) {
+      console.error("[listings] could not cancel subscription on delete:", e);
+    }
+  }
+
+  // Remove photos from storage.
+  const paths = doomed
+    .flatMap((l) => l.photos ?? [])
     .map(storagePath)
     .filter((p): p is string => !!p);
   if (paths.length) await supabase.storage.from(BUCKET).remove(paths);
