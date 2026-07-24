@@ -4,11 +4,13 @@ import { useState } from "react";
 import { MailCheck, Send } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
+import { useCaptcha } from "@/components/auth/use-captcha";
 
 export function ForgotPasswordForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const captcha = useCaptcha();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -18,10 +20,14 @@ export function ForgotPasswordForm() {
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(
       String(fd.get("email")).trim(),
-      { redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password` },
+      {
+        redirectTo: `${window.location.origin}/auth/confirm?next=/reset-password`,
+        captchaToken: captcha.captchaToken,
+      },
     );
     if (error) {
       setError(error.message);
+      captcha.reset();
       setBusy(false);
       return;
     }
@@ -46,6 +52,7 @@ export function ForgotPasswordForm() {
         <label className={authLabelCls} htmlFor="email">Email</label>
         <input id="email" name="email" type="email" autoComplete="email" required className={authInputCls} placeholder="you@email.com" />
       </div>
+      {captcha.field}
       {error && <p className="text-[13.5px] font-medium text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={authSubmitCls}>
         <Send className="h-[18px] w-[18px]" /> {busy ? "Sending..." : "Send reset link"}

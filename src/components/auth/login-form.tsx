@@ -6,6 +6,7 @@ import { LogIn } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
 import { PasswordInput } from "@/components/auth/password-input";
+import { useCaptcha } from "@/components/auth/use-captcha";
 import { safePath } from "@/lib/safe-path";
 
 export function LoginForm() {
@@ -14,6 +15,7 @@ export function LoginForm() {
   const redirect = safePath(params.get("redirect"));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const captcha = useCaptcha();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -24,9 +26,11 @@ export function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({
       email: String(fd.get("email")).trim(),
       password: String(fd.get("password")),
+      options: { captchaToken: captcha.captchaToken },
     });
     if (error) {
       setError(error.message);
+      captcha.reset();
       setBusy(false);
       return;
     }
@@ -50,6 +54,7 @@ export function LoginForm() {
         </div>
         <PasswordInput id="password" name="password" autoComplete="current-password" required placeholder="Your password" />
       </div>
+      {captcha.field}
       {error && <p className="text-[13.5px] font-medium text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={authSubmitCls}>
         <LogIn className="h-[18px] w-[18px]" /> {busy ? "Signing in..." : "Sign in"}

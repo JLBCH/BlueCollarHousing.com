@@ -6,6 +6,7 @@ import { UserPlus, MailCheck, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
 import { PasswordInput } from "@/components/auth/password-input";
+import { useCaptcha } from "@/components/auth/use-captcha";
 import { formatPhone } from "@/lib/format-phone";
 
 export function RegisterForm() {
@@ -16,6 +17,7 @@ export function RegisterForm() {
   const [sentTo, setSentTo] = useState("");
   const [resent, setResent] = useState(false);
   const [phone, setPhone] = useState("");
+  const captcha = useCaptcha();
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,10 +44,12 @@ export function RegisterForm() {
           phone: String(fd.get("phone")).trim(),
         },
         emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        captchaToken: captcha.captchaToken,
       },
     });
     if (error) {
       setError(error.message);
+      captcha.reset();
       setBusy(false);
       return;
     }
@@ -54,6 +58,7 @@ export function RegisterForm() {
     // form would falsely say "check your email" and silently create nothing.
     if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       setError("An account with this email already exists. Try signing in instead.");
+      captcha.reset();
       setBusy(false);
       return;
     }
@@ -73,11 +78,20 @@ export function RegisterForm() {
     if (!sentTo) return;
     setBusy(true);
     const supabase = createClient();
-    await supabase.auth.resend({
+    const { error } = await supabase.auth.resend({
       type: "signup",
       email: sentTo,
-      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+        captchaToken: captcha.captchaToken,
+      },
     });
+    captcha.reset();
+    if (error) {
+      setError(error.message);
+      setBusy(false);
+      return;
+    }
     setResent(true);
     setBusy(false);
   }
@@ -110,7 +124,9 @@ export function RegisterForm() {
           </p>
         </div>
 
-        <p className="mt-4 text-[13.5px] text-muted">
+        <div className="mt-4">{captcha.field}</div>
+        {error && <p className="mt-2 text-[13.5px] font-medium text-red-600">{error}</p>}
+        <p className="mt-2 text-[13.5px] text-muted">
           {resent ? (
             <span className="font-medium text-green-700">Sent again — check your inbox and spam.</span>
           ) : (
@@ -149,6 +165,7 @@ export function RegisterForm() {
         <label className={authLabelCls} htmlFor="password">Password</label>
         <PasswordInput id="password" name="password" autoComplete="new-password" required placeholder="At least 8 characters" />
       </div>
+      {captcha.field}
       {error && <p className="text-[13.5px] font-medium text-red-600">{error}</p>}
       <button type="submit" disabled={busy} className={authSubmitCls}>
         <UserPlus className="h-[18px] w-[18px]" /> {busy ? "Creating account..." : "Create account"}
