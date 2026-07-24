@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserPlus, MailCheck } from "lucide-react";
+import { UserPlus, MailCheck, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { authInputCls, authLabelCls, authSubmitCls } from "@/components/auth/auth-shell";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -13,6 +13,8 @@ export function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [needsVerify, setNeedsVerify] = useState(false);
+  const [sentTo, setSentTo] = useState("");
+  const [resent, setResent] = useState(false);
   const [phone, setPhone] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -29,9 +31,10 @@ export function RegisterForm() {
       return;
     }
     setBusy(true);
+    const email = String(fd.get("email")).trim();
     const supabase = createClient();
     const { data, error } = await supabase.auth.signUp({
-      email: String(fd.get("email")).trim(),
+      email,
       password,
       options: {
         data: {
@@ -60,9 +63,23 @@ export function RegisterForm() {
       router.replace("/dashboard");
       router.refresh();
     } else {
+      setSentTo(email);
       setNeedsVerify(true);
       setBusy(false);
     }
+  }
+
+  async function resend() {
+    if (!sentTo) return;
+    setBusy(true);
+    const supabase = createClient();
+    await supabase.auth.resend({
+      type: "signup",
+      email: sentTo,
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+    });
+    setResent(true);
+    setBusy(false);
   }
 
   if (needsVerify) {
@@ -71,7 +88,44 @@ export function RegisterForm() {
         <MailCheck className="h-10 w-10 text-orange" />
         <h2 className="font-display mt-3 text-[20px] font-bold text-navy">Check your email</h2>
         <p className="mt-2 text-[14.5px] text-muted">
-          We sent you a link to confirm your account. Click it, then sign in.
+          We sent a link to confirm your account
+          {sentTo ? (
+            <>
+              {" "}
+              to <span className="font-semibold text-navy">{sentTo}</span>
+            </>
+          ) : null}
+          . Click it, then sign in.
+        </p>
+
+        {/* Deliverability to some providers (Yahoo especially) can land the
+            confirmation in spam. Make this impossible to miss — an unseen
+            confirmation email means a signup that never completes. */}
+        <div className="mt-5 flex w-full items-start gap-2.5 rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 text-left">
+          <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
+          <p className="text-[14px] font-medium text-amber-900">
+            Don&apos;t see it? <span className="font-bold">Check your spam or junk folder.</span>{" "}
+            The email can take a minute to arrive and sometimes lands there — mark it{" "}
+            <span className="font-semibold">&ldquo;Not spam&rdquo;</span> so it opens right up.
+          </p>
+        </div>
+
+        <p className="mt-4 text-[13.5px] text-muted">
+          {resent ? (
+            <span className="font-medium text-green-700">Sent again — check your inbox and spam.</span>
+          ) : (
+            <>
+              Still nothing?{" "}
+              <button
+                type="button"
+                onClick={resend}
+                disabled={busy}
+                className="font-semibold text-orange hover:underline disabled:opacity-50"
+              >
+                Resend the email
+              </button>
+            </>
+          )}
         </p>
       </div>
     );
