@@ -205,9 +205,13 @@ export function ListingActions({
           they never reach a payment click, so agreement can't hang off purchase. */}
       {(status === "draft" || status === "rejected") && (
         <p className="text-right text-[11px] text-muted">
-          By submitting your listing you agree to our{" "}
+          By submitting your listing or using this website to find a listing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-navy">
             Terms of Use
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-navy">
+            Privacy Policy
           </Link>
           .
         </p>

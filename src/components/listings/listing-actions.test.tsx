@@ -38,14 +38,16 @@ describe("pay buttons carry no separate consent line", () => {
   });
 });
 
-const SUBMIT_CONSENT = /By submitting your listing you agree to our/;
+const SUBMIT_CONSENT =
+  /By submitting your listing or using this website to find a listing you agree to our/;
 
 describe("submit consent line (covers free/comped listings)", () => {
-  it("shows next to Submit for approval on drafts", () => {
+  it("shows next to Submit for approval on drafts, linking Terms and Privacy", () => {
     render(<ListingActions id="x" status="draft" />);
     expect(screen.getByRole("button", { name: /Submit for approval/ })).toBeDefined();
     const note = screen.getByText(SUBMIT_CONSENT);
     expect(note.querySelector('a[href="/terms"]')?.textContent).toMatch(/Terms of Use/);
+    expect(note.querySelector('a[href="/privacy"]')?.textContent).toMatch(/Privacy Policy/);
   });
 
   it("shows on rejected listings (resubmit path)", () => {
