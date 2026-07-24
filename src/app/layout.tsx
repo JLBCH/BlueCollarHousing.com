@@ -28,6 +28,10 @@ export const metadata: Metadata = {
     "Furnished housing built for blue-collar workers. Find a comfortable place near the job site for a turnaround, shutdown, or long-term project. No hotels.",
   openGraph: {
     siteName: "BlueCollarHousing",
+    // Shown as the title line under the shared-link preview card. Kept to the
+    // brand name so it doesn't repeat the tagline baked into the OG image.
+    title: "BlueCollarHousing",
+    description: "Hotel alternatives for those working on the road.",
     type: "website",
     locale: "en_US",
     url: "/",

@@ -125,10 +125,13 @@ export default async function AdminReviewPage({
           <CompToggle id={l.id} isComp={l.is_comp} subscriptionStatus={l.subscription_status} />
           <AdminListingControls id={l.id} />
 
-          {/* Lifecycle history — Privacy Policy 2.1 */}
-          {events.length > 0 && (
-            <div className="rounded-card border border-line bg-white p-6 shadow-[0_8px_24px_rgba(16,32,48,0.06)]">
-              <h2 className="text-[12px] font-bold uppercase tracking-wide text-muted">History</h2>
+          {/* Lifecycle history — Privacy Policy 2.1. Always shown (even when
+              empty) so the section is never silently missing. */}
+          <div className="rounded-card border border-line bg-white p-6 shadow-[0_8px_24px_rgba(16,32,48,0.06)]">
+            <h2 className="text-[12px] font-bold uppercase tracking-wide text-muted">History</h2>
+            {events.length === 0 ? (
+              <p className="mt-3 text-[13.5px] text-muted">No activity recorded yet.</p>
+            ) : (
               <ol className="mt-3 space-y-2.5">
                 {events.map((e, i) => (
                   <li key={i} className="flex items-baseline justify-between gap-3 text-[13.5px]">
@@ -145,8 +148,8 @@ export default async function AdminReviewPage({
                   </li>
                 ))}
               </ol>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Details */}
           <div className="rounded-card border border-line bg-white p-6 shadow-[0_8px_24px_rgba(16,32,48,0.06)]">
