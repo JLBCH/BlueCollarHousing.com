@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/lib/geo";
-import { BUCKET, storagePath } from "@/lib/listings/storage";
+import { BUCKET, storagePath, subscriptionsToCancel } from "@/lib/listings/storage";
 import { scopeOwner } from "@/lib/listings/scope-owner";
 import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
 import { stripe } from "@/lib/stripe";
@@ -175,10 +175,9 @@ export async function deleteListing(id: string): Promise<Result> {
   // Terms 6.2: deleting a listing cancels its automatic renewal. Cancel BEFORE
   // the row goes (afterwards we'd have no record of which subscription to end),
   // best-effort so a Stripe outage can't block the delete.
-  for (const l of doomed) {
-    if (!l.stripe_subscription_id) continue;
+  for (const subId of subscriptionsToCancel(doomed)) {
     try {
-      await stripe.subscriptions.cancel(l.stripe_subscription_id);
+      await stripe.subscriptions.cancel(subId);
     } catch (e) {
       console.error("[listings] could not cancel subscription on delete:", e);
     }

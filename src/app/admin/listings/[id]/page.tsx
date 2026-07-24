@@ -11,6 +11,7 @@ import { CompToggle } from "@/components/admin/comp-toggle";
 import { AdminListingControls } from "@/components/admin/admin-listing-controls";
 import { billingState } from "@/lib/listings/billing-state";
 import { STATUS_STYLES } from "@/lib/listings/status-styles";
+import { listingEventLabel, type ListingEvent } from "@/lib/listings/events";
 
 export const metadata: Metadata = { title: "Admin · Review listing" };
 
@@ -42,6 +43,15 @@ export default async function AdminReviewPage({
         .eq("id", l.owner_id)
         .single()
     : { data: null };
+
+  // Lifecycle history (Privacy Policy 2.1): when it was submitted, approved,
+  // revised, removed. Oldest first so it reads as a timeline.
+  const { data: eventRows } = await supabase
+    .from("listing_events")
+    .select("event, actor_is_admin, created_at")
+    .eq("listing_id", id)
+    .order("created_at", { ascending: true });
+  const events = (eventRows ?? []) as ListingEvent[];
 
   const photos: string[] = Array.isArray(l.photos) ? l.photos : [];
   const cityLine = [l.city, l.state].filter((s) => s && String(s).trim()).join(", ");
@@ -114,6 +124,29 @@ export default async function AdminReviewPage({
           <ReviewForm id={l.id} />
           <CompToggle id={l.id} isComp={l.is_comp} subscriptionStatus={l.subscription_status} />
           <AdminListingControls id={l.id} />
+
+          {/* Lifecycle history — Privacy Policy 2.1 */}
+          {events.length > 0 && (
+            <div className="rounded-card border border-line bg-white p-6 shadow-[0_8px_24px_rgba(16,32,48,0.06)]">
+              <h2 className="text-[12px] font-bold uppercase tracking-wide text-muted">History</h2>
+              <ol className="mt-3 space-y-2.5">
+                {events.map((e, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-3 text-[13.5px]">
+                    <span className="text-ink">{listingEventLabel(e)}</span>
+                    <span className="flex-shrink-0 text-[12.5px] text-muted">
+                      {new Date(e.created_at).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {/* Details */}
           <div className="rounded-card border border-line bg-white p-6 shadow-[0_8px_24px_rgba(16,32,48,0.06)]">
