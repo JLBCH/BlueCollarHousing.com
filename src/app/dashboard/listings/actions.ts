@@ -6,6 +6,7 @@ import { geocodeAddress } from "@/lib/geo";
 import { BUCKET, storagePath, subscriptionsToCancel } from "@/lib/listings/storage";
 import { scopeOwner } from "@/lib/listings/scope-owner";
 import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
+import { notifyAdminListingDeleted } from "@/lib/email/listing-deleted-notify";
 import { stripe } from "@/lib/stripe";
 import type { ListingInput } from "@/app/dashboard/listings/new/actions";
 
@@ -154,7 +155,7 @@ export async function deleteListing(id: string): Promise<Result> {
 
   let rowQ = supabase
     .from("listings")
-    .select("photos, stripe_subscription_id")
+    .select("title, photos, stripe_subscription_id")
     .eq("id", id);
   if (ownerId) rowQ = rowQ.eq("owner_id", ownerId);
   const { data: row } = await rowQ.single();
@@ -175,7 +176,8 @@ export async function deleteListing(id: string): Promise<Result> {
   // Terms 6.2: deleting a listing cancels its automatic renewal. Cancel BEFORE
   // the row goes (afterwards we'd have no record of which subscription to end),
   // best-effort so a Stripe outage can't block the delete.
-  for (const subId of subscriptionsToCancel(doomed)) {
+  const canceledSubs = subscriptionsToCancel(doomed);
+  for (const subId of canceledSubs) {
     try {
       await stripe.subscriptions.cancel(subId);
     } catch (e) {
@@ -194,6 +196,19 @@ export async function deleteListing(id: string): Promise<Result> {
   if (ownerId) delQ = delQ.eq("owner_id", ownerId);
   const { error } = await delQ;
   if (error) return { ok: false, error: error.message };
+
+  // Notify the admin that a paid listing was deleted and its subscription
+  // canceled. The Stripe webhook can't cover this path (the listing row is gone
+  // before customer.subscription.deleted arrives), so we email here. Best-effort.
+  if (canceledSubs.length > 0) {
+    await notifyAdminListingDeleted({
+      title: (row as { title?: string | null } | null)?.title ?? "",
+      actorEmail: user.email,
+      wasAdmin: ownerId === null,
+      subscriptionCount: canceledSubs.length,
+    });
+  }
+
   revalidatePath("/admin");
   revalidatePath("/dashboard");
   revalidatePath("/"); // deleting a live listing removes its homepage map pin
