@@ -38,8 +38,7 @@ describe("pay buttons carry no separate consent line", () => {
   });
 });
 
-const SUBMIT_CONSENT =
-  /By submitting your listing or using this website to find a listing you agree to our/;
+const SUBMIT_CONSENT = /By submitting your listing you agree to our/;
 
 describe("submit consent line (covers free/comped listings)", () => {
   it("shows next to Submit for approval on drafts, linking Terms and Privacy", () => {
@@ -58,7 +57,7 @@ describe("submit consent line (covers free/comped listings)", () => {
 
 // Terms 5.3 requires the payment authorization disclosure to sit with the pay
 // click, not only at submission.
-const PAY_CONSENT = /By paying you agree to our/;
+const PAY_CONSENT = /By paying for your listing you agree to our/;
 
 describe("payment consent line", () => {
   it("shows next to Pay to publish, naming auto-renewal and how to cancel", () => {
@@ -66,6 +65,7 @@ describe("payment consent line", () => {
     expect(screen.getByRole("button", { name: /Pay to publish/ })).toBeDefined();
     const note = screen.getByText(PAY_CONSENT);
     expect(note.querySelector('a[href="/terms"]')?.textContent).toMatch(/Terms of Use/);
+    expect(note.querySelector('a[href="/privacy"]')?.textContent).toMatch(/Privacy Policy/);
     expect(note.textContent).toMatch(/automatic annual renewal/);
     expect(note.textContent).toMatch(/[Cc]ancel any time/);
   });

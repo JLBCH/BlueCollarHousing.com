@@ -205,7 +205,7 @@ export function ListingActions({
           they never reach a payment click, so agreement can't hang off purchase. */}
       {(status === "draft" || status === "rejected") && (
         <p className="text-right text-[11px] text-muted">
-          By submitting your listing or using this website to find a listing you agree to our{" "}
+          By submitting your listing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-navy">
             Terms of Use
           </Link>{" "}
@@ -221,11 +221,15 @@ export function ListingActions({
           next screen; this states the annual auto-renew and how to stop it. */}
       {(bs === "awaiting_payment" || bs === "lapsed") && !PAYMENTS_PAUSED && (
         <p className="text-right text-[11px] text-muted">
-          By paying you agree to our{" "}
+          By paying for your listing you agree to our{" "}
           <Link href="/terms" className="underline hover:text-navy">
             Terms of Use
           </Link>{" "}
-          and authorize this listing fee and its automatic annual renewal at the price shown
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-navy">
+            Privacy Policy
+          </Link>
+          , and authorize this listing fee and its automatic annual renewal at the price shown
           at checkout. Cancel any time from this dashboard before the renewal date.
         </p>
       )}

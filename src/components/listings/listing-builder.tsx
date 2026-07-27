@@ -910,7 +910,7 @@ export function ListingBuilder({
             see a payment step, so submission is the one gate every listing passes. */}
         {currentStatus !== "approved" && (
           <p className="w-full text-right text-[11px] text-muted">
-            By submitting your listing or using this website to find a listing you agree to our{" "}
+            By submitting your listing you agree to our{" "}
             <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-navy">
               Terms of Use
             </a>{" "}
