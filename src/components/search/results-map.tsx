@@ -8,6 +8,7 @@ import { Maximize2, X } from "lucide-react";
 import type { Listing } from "@/lib/listings/types";
 import { PROPERTY_TYPE_LABELS, isCommercial } from "@/lib/listings/types";
 import { previewRate, kindLabel } from "@/lib/listings/format";
+import { styleMarker, markerEl } from "@/components/search/marker-style";
 
 export type MapBounds = {
   south: number;
@@ -17,25 +18,6 @@ export type MapBounds = {
 };
 
 const TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-
-// Plain teardrop pin, no price on the marker itself (the rate shows in the
-// preview popup). Active pin is orange, the rest navy.
-// Paint a pin for its active/hover state: orange and lifted when active, navy
-// otherwise. Kept separate from creation so hover can restyle in place.
-function styleMarker(el: HTMLDivElement, active: boolean): void {
-  el.style.background = active ? "#cf4715" : "#13314f";
-  el.style.zIndex = active ? "5" : "0";
-  el.style.width = active ? "22px" : "18px";
-  el.style.height = active ? "22px" : "18px";
-}
-
-function markerEl(active: boolean): HTMLDivElement {
-  const el = document.createElement("div");
-  el.style.cssText =
-    "border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff;cursor:pointer;transition:width .12s,height .12s";
-  styleMarker(el, active);
-  return el;
-}
 
 /** Escape owner-controlled strings before injecting into the popup's setHTML. */
 function esc(s: string): string {
@@ -157,8 +139,14 @@ export function ResultsMap({
         // fingers pan it (keeps an embedded map from trapping scroll). When the
         // map is the whole view, this is off so one finger pans directly.
         cooperativeGestures: cooperative,
+        // Collapse the wide attribution bar into a small "(i)" that expands on
+        // tap. Mapbox's terms require attribution to stay present, so we keep it
+        // (compact) rather than removing it — but it no longer spans the corner
+        // where pins cluster.
+        attributionControl: false,
       });
       mapRef.current = map;
+      map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
       map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
       map.on("moveend", () => {
@@ -253,7 +241,8 @@ export function ResultsMap({
     const b = new mapboxgl.LngLatBounds();
     b.extend(c);
     listingsRef.current.slice(0, 6).forEach((l) => b.extend([l.lng, l.lat]));
-    map.fitBounds(b, { padding: 70, maxZoom: 11, duration: 700 });
+    // Extra bottom room so pins don't settle right on the corner logo/attribution.
+    map.fitBounds(b, { padding: { top: 70, right: 70, bottom: 96, left: 70 }, maxZoom: 11, duration: 700 });
   }
 
   // When the center changes after the map is up (desktop: the map is always
@@ -279,7 +268,8 @@ export function ResultsMap({
     }
     const bounds = new mapboxgl.LngLatBounds();
     ls.forEach((l) => bounds.extend([l.lng, l.lat]));
-    map.fitBounds(bounds, { padding: 56, maxZoom: 11, duration: 0 });
+    // Extra bottom room so pins don't settle right on the corner logo/attribution.
+    map.fitBounds(bounds, { padding: { top: 56, right: 56, bottom: 90, left: 56 }, maxZoom: 11, duration: 0 });
   }
 
   function renderMarkers() {
