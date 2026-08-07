@@ -48,13 +48,18 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Map stacking: Mapbox draws its logo + attribution in a z-index:2 control
-   layer. The pins are lifted above that layer via an inline z-index in
-   results-map.tsx (styleMarker), so a pin overlapping the bottom-left logo
-   captures the tap and opens its popup instead of the mapbox.com link. Here we
-   only need to keep the zoom control above the pins so a pin can never block
-   zooming. Two-class selector so it beats mapbox-gl.css's own single-class
-   z-index:2 rule regardless of stylesheet import order. */
+/* Map stacking order (bottom → top): logo/attribution layer (mapbox default,
+   z-index 2) < inactive pin (3) < active pin (4) < zoom control (5) < open popup
+   (6). Pins are lifted above the logo via an inline z-index in results-map.tsx
+   (styleMarker) so a pin overlapping the bottom-left logo captures the tap and
+   opens its popup instead of the mapbox.com link. The two rules below keep the
+   zoom control clickable over pins, and keep an open listing popup above the
+   pins (Mapbox gives the popup no z-index, so the lifted pins would otherwise
+   render on top of the preview card). Two-class selectors so they beat
+   mapbox-gl.css's own single-class rules regardless of import order. */
 .mapboxgl-map .mapboxgl-ctrl-top-right {
   z-index: 5;
+}
+.mapboxgl-map .mapboxgl-popup {
+  z-index: 6;
 }
