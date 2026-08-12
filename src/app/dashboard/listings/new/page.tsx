@@ -33,7 +33,7 @@ export default async function NewListingChooser() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[16px] font-bold text-navy">Single property — $99/year</span>
-              <span className="block text-[13.5px] text-muted">House, apartment, cabin, mobile home, RV spot, room rental, or any single unit.</span>
+              <span className="block text-[13.5px] text-muted">House, apartment, cabin, mobile home, room rental, a small RV park with up to 6 spaces, or a small hotel with up to 6 rooms. Have several genuinely different spaces at one address (e.g., a house plus a cabin plus a room plus an RV spot)? Add each additional unit for $10/year.</span>
             </span>
             <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted" />
           </Link>
@@ -49,7 +49,7 @@ export default async function NewListingChooser() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[16px] font-bold text-navy">RV Park</span>
-              <span className="block text-[13.5px] text-muted">Hookups, sites, amenities, and cabins.</span>
+              <span className="block text-[13.5px] text-muted">7 or more RV spaces, with or without cabins.</span>
             </span>
             <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted" />
           </Link>
@@ -60,7 +60,7 @@ export default async function NewListingChooser() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[16px] font-bold text-navy">Hotel</span>
-              <span className="block text-[13.5px] text-muted">Room types, housekeeping, parking, amenities.</span>
+              <span className="block text-[13.5px] text-muted">7 or more rooms.</span>
             </span>
             <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted" />
           </Link>
@@ -71,7 +71,7 @@ export default async function NewListingChooser() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[16px] font-bold text-navy">Multifamily / Apartment Complex</span>
-              <span className="block text-[13.5px] text-muted">Furnished units, what&apos;s included, leasing terms.</span>
+              <span className="block text-[13.5px] text-muted">7 or more furnished units.</span>
             </span>
             <ChevronRight className="h-5 w-5 flex-shrink-0 text-muted" />
           </Link>

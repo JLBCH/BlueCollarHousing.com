@@ -19,7 +19,7 @@ const PLANS = [
     price: "$99",
     unit: "per year",
     blurb:
-      "One property or private room: house, apartment, cabin, garage apartment, camper, RV spot, room rental or any single unit.",
+      "One property or private room: house, apartment, cabin, mobile home, garage apartment, room rental, a small RV park with up to 6 spaces, or a small hotel with up to 6 rooms.",
     addon:
       "Have a duplex, triplex or multiple units at the same address? Add up to 5 additional units for just $10 each per year — 6 listings total at one address. Additional units are prorated to your primary listing renewal date and will renew at the same time.",
     featured: true,

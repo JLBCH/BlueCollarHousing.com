@@ -115,7 +115,7 @@ export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   townhouse: "Townhouse",
   mobile_home: "Mobile / Manufactured Home",
   travel_trailer: "Travel Trailer / Camper",
-  rv_spot: "Single RV Spot",
+  rv_spot: "Small RV Park (up to 6 spots)",
   rv_park: "RV Park",
   rv_resort: "RV Resort",
   hotel: "Hotel",
