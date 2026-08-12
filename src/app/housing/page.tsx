@@ -30,7 +30,7 @@ export default async function HousingIndexPage() {
         <p className="mt-3 max-w-[62ch] text-[16px] leading-relaxed text-muted">
           Pick the area closest to your job site. Every city page shows
           furnished weekly and monthly rentals from local owners — houses,
-          apartments, rooms, RV spots, and more.
+          apartments, rooms, RV spots, RV parks, and more.
         </p>
 
         {cities.length > 0 ? (

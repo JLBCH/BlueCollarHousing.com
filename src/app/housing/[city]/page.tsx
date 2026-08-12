@@ -20,7 +20,7 @@ export async function generateMetadata({
   const city = (await getCities()).find((c) => c.slug === slug);
   if (!city) return { title: "Area not found" };
   const title = `Furnished housing in ${city.city}, ${city.state} · crew & workforce housing`;
-  const description = `Furnished weekly and monthly rentals in ${city.city}, ${city.state} for traveling workers and crews. Houses, apartments, rooms, and RV spots near the job — no hotels.`;
+  const description = `Furnished weekly and monthly rentals in ${city.city}, ${city.state} for traveling workers and crews. Houses, apartments, rooms, RV spots and RV parks near the job — no hotels.`;
   return {
     title,
     description,

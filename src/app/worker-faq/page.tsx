@@ -32,7 +32,7 @@ const FAQS: { q: string; a: string[] }[] = [
   {
     q: "Are these places furnished?",
     a: [
-      "Most listings are furnished or semi furnished, ready to move into without buying furniture or setting up utilities. RV spots and camper pads are also available for workers who bring their own rig. Check each listing for specifics on what is included.",
+      "Most listings are furnished or semi furnished, ready to move into without buying furniture or setting up utilities. RV spots, RV parks and camper pads are also available for workers who bring their own rig. Check each listing for specifics on what is included.",
     ],
   },
   {
