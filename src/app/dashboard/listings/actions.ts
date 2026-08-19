@@ -25,6 +25,7 @@ export async function updateListing(
   input: ListingInput,
   currentStatus?: string,
 ): Promise<Result> {
+  void currentStatus; // Kept for the existing client contract; DB state is authoritative.
   const { supabase, user } = await getUserClient();
   if (!user) return { ok: false, error: "You must be signed in." };
 
@@ -61,18 +62,22 @@ export async function updateListing(
   // Capture the current photos first so we can clean up any the owner removed
   // (DB-loaded thumbnails have no in-memory storage path, so the uploader can't
   // delete them; reconcile here on save instead of orphaning them in Storage).
-  let prevQ = supabase.from("listings").select("photos").eq("id", id);
+  let prevQ = supabase.from("listings").select("photos, status, reviewed_at").eq("id", id);
   if (ownerId) prevQ = prevQ.eq("owner_id", ownerId);
-  const { data: prev } = await prevQ.single();
-  const oldPhotos = (prev?.photos as string[] | null) ?? [];
+  const { data: prev, error: prevError } = await prevQ.single();
+  if (prevError || !prev) {
+    return { ok: false, error: "We could not find that listing under your account." };
+  }
+  const oldPhotos = (prev.photos as string[] | null) ?? [];
 
   // Address-precise geocode so the pin lands on the building, not the ZIP centroid.
   const center = await geocodeAddress(
     `${input.streetAddress} ${input.city}, ${input.state} ${input.zip}`.trim(),
   );
-  // submit => pending; otherwise keep the listing's current status (don't
-  // silently unpublish an approved listing on a plain save).
-  const status = input.submit ? "pending" : currentStatus || "draft";
+  // Never trust the client-supplied current status. SQL forces material edits
+  // to an approved listing back through review; this server value only carries
+  // forward the status that was actually read under owner/admin scope.
+  const status = prev.status === "approved" ? "approved" : input.submit ? "pending" : prev.status;
 
   const patch: Record<string, unknown> = {
     status,
@@ -120,12 +125,25 @@ export async function updateListing(
   }
 
   let updQ = supabase.from("listings").update(patch).eq("id", id);
-  if (ownerId) updQ = updQ.eq("owner_id", ownerId);
-  const { data, error } = await updQ.select("id");
+  if (ownerId) {
+    // Keep the read and write logically atomic for owners: an admin decision
+    // that lands while geocoding is in flight must make this stale save lose.
+    updQ = updQ.eq("owner_id", ownerId).eq("status", prev.status);
+    updQ = prev.reviewed_at === null
+      ? updQ.is("reviewed_at", null)
+      : updQ.eq("reviewed_at", prev.reviewed_at);
+  }
+  const { data, error } = await updQ.select("id, status");
 
   if (error) return { ok: false, error: error.message };
   // A matched-zero update returns no error; surface it instead of a false "saved".
   if (!data || data.length === 0) {
+    if (ownerId) {
+      return {
+        ok: false,
+        error: "This listing changed while you were editing. Refresh the page and try again.",
+      };
+    }
     return { ok: false, error: "We could not find that listing under your account." };
   }
 
@@ -136,8 +154,12 @@ export async function updateListing(
     .filter((p): p is string => !!p);
   if (removedPaths.length) await supabase.storage.from(BUCKET).remove(removedPaths);
 
-  // Tell the admin when this save is a submit-for-approval (resubmit included).
-  if (input.submit) {
+  // Tell the admin for explicit submissions and for a published listing that
+  // the database automatically returned to review after a material owner edit.
+  const movedApprovedListingToReview =
+    ownerId !== null && prev.status === "approved" && data[0]?.status === "pending";
+  const submittedForReview = input.submit && data[0]?.status === "pending";
+  if (submittedForReview || movedApprovedListingToReview) {
     await notifyAdminListingSubmitted({ title: input.title, submitterEmail: user.email });
   }
 

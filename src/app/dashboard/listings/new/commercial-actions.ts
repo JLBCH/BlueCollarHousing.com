@@ -117,6 +117,7 @@ export async function updateCommercialListing(
   input: CommercialInput,
   currentStatus?: string,
 ): Promise<Result> {
+  void currentStatus; // Kept for the existing client contract; DB state is authoritative.
   const supabase = await createClient();
   const {
     data: { user },
@@ -146,17 +147,20 @@ export async function updateCommercialListing(
   // Admins may edit any listing; owners only their own.
   const ownerId = await scopeOwner(supabase, user.id);
 
-  let prevQ = supabase.from("listings").select("photos").eq("id", id);
+  let prevQ = supabase.from("listings").select("photos, status, reviewed_at").eq("id", id);
   if (ownerId) prevQ = prevQ.eq("owner_id", ownerId);
-  const { data: prev } = await prevQ.single();
-  const oldPhotos = (prev?.photos as string[] | null) ?? [];
+  const { data: prev, error: prevError } = await prevQ.single();
+  if (prevError || !prev) {
+    return { ok: false, error: "We could not find that listing under your account." };
+  }
+  const oldPhotos = (prev.photos as string[] | null) ?? [];
 
   const center = await geocodeAddress(
     `${input.streetAddress} ${input.city}, ${input.state} ${input.zip}`.trim(),
   );
-  // submit => back into the queue; otherwise keep the current status (don't
-  // silently unpublish an approved listing on a plain save).
-  const status = input.submit ? "pending" : currentStatus || "draft";
+  // Carry forward the scoped database value instead of trusting client state.
+  // The database trigger moves material edits to approved rows back to pending.
+  const status = prev.status === "approved" ? "approved" : input.submit ? "pending" : prev.status;
 
   const patch: Record<string, unknown> = {
     status,
@@ -188,10 +192,21 @@ export async function updateCommercialListing(
   }
 
   let updQ = supabase.from("listings").update(patch).eq("id", id);
-  if (ownerId) updQ = updQ.eq("owner_id", ownerId);
-  const { data, error } = await updQ.select("id");
+  if (ownerId) {
+    updQ = updQ.eq("owner_id", ownerId).eq("status", prev.status);
+    updQ = prev.reviewed_at === null
+      ? updQ.is("reviewed_at", null)
+      : updQ.eq("reviewed_at", prev.reviewed_at);
+  }
+  const { data, error } = await updQ.select("id, status");
   if (error) return { ok: false, error: error.message };
   if (!data || data.length === 0) {
+    if (ownerId) {
+      return {
+        ok: false,
+        error: "This listing changed while you were editing. Refresh the page and try again.",
+      };
+    }
     return { ok: false, error: "We could not find that listing under your account." };
   }
 
@@ -202,7 +217,10 @@ export async function updateCommercialListing(
     .filter((p): p is string => !!p);
   if (removed.length) await supabase.storage.from(BUCKET).remove(removed);
 
-  if (input.submit) {
+  const movedApprovedListingToReview =
+    ownerId !== null && prev.status === "approved" && data[0]?.status === "pending";
+  const submittedForReview = input.submit && data[0]?.status === "pending";
+  if (submittedForReview || movedApprovedListingToReview) {
     await notifyAdminListingSubmitted({ title: input.name, submitterEmail: user.email, isCommercial: true });
   }
   revalidatePath("/dashboard");
