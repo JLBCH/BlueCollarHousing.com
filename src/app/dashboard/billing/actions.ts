@@ -1,35 +1,121 @@
 "use server";
 
 import type Stripe from "stripe";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, PRICES, siteUrl, customerIdForEmail } from "@/lib/stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { stripe, PRICES, siteUrl } from "@/lib/stripe";
 import { isCommercial } from "@/lib/listings/types";
 import { ACTIVE_STATUSES } from "@/lib/subscription-status";
 
 type Result = { ok: true; url: string } | { ok: false; error: string };
 
-/** Get the user's Stripe customer id, creating + storing one if needed. */
+type CustomerResult =
+  | { ok: true; customerId: string }
+  | { ok: false; error: string };
+
+const BILLING_ACCOUNT_ERROR =
+  "We could not verify your billing account. Please contact support before continuing.";
+
+function verifiedAuthEmail(user: User): string | undefined {
+  const email = user.email?.trim().toLowerCase();
+  return email && user.email_confirmed_at ? email : undefined;
+}
+
+async function persistCustomerBinding(userId: string, customerId: string): Promise<void> {
+  // Customer bindings are deliberately pinned against normal profile updates in
+  // SQL. Only this trusted server path (or an admin) may persist them.
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("profiles")
+    .update({ stripe_customer_id: customerId })
+    .eq("id", userId);
+  if (error) throw new Error("Could not persist Stripe customer binding.");
+}
+
+async function verifyStoredCustomer(user: User, customerId: string): Promise<CustomerResult> {
+  try {
+    const customer = await stripe.customers.retrieve(customerId);
+    if (customer.deleted) return { ok: false, error: BILLING_ACCOUNT_ERROR };
+
+    const boundUserId = customer.metadata.user_id?.trim();
+    if (boundUserId) {
+      return boundUserId === user.id
+        ? { ok: true, customerId: customer.id }
+        : { ok: false, error: BILLING_ACCOUNT_ERROR };
+    }
+
+    // A pre-remediation Stripe customer can be adopted only when its Stripe
+    // email exactly matches the user's confirmed Supabase auth email.
+    const authEmail = verifiedAuthEmail(user);
+    if (!authEmail || customer.email?.trim().toLowerCase() !== authEmail) {
+      return { ok: false, error: BILLING_ACCOUNT_ERROR };
+    }
+
+    await stripe.customers.update(customer.id, {
+      metadata: { user_id: user.id },
+    });
+    await persistCustomerBinding(user.id, customer.id);
+    return { ok: true, customerId: customer.id };
+  } catch {
+    return { ok: false, error: BILLING_ACCOUNT_ERROR };
+  }
+}
+
+/** Get a verified Stripe customer id, creating and binding one if needed. */
 async function ensureCustomer(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  email: string | undefined,
-): Promise<string> {
-  const { data: profile } = await supabase
+  user: User,
+): Promise<CustomerResult> {
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("stripe_customer_id, full_name")
-    .eq("id", userId)
+    .eq("id", user.id)
     .single();
-  if (profile?.stripe_customer_id) return profile.stripe_customer_id;
+  if (profileError) return { ok: false, error: BILLING_ACCOUNT_ERROR };
 
-  // Reuse a customer that already exists for this email (e.g. one an admin
-  // created when binding an email-restricted coupon), so that coupon matches at
-  // checkout. Falls back to creating one when no email / no match.
+  if (profile?.stripe_customer_id) {
+    return verifyStoredCustomer(user, profile.stripe_customer_id);
+  }
+
   const name = profile?.full_name || undefined;
-  const customerId = email
-    ? await customerIdForEmail(email, { name, metadata: { user_id: userId } })
-    : (await stripe.customers.create({ name, metadata: { user_id: userId } })).id;
-  await supabase.from("profiles").update({ stripe_customer_id: customerId }).eq("id", userId);
-  return customerId;
+  const email = verifiedAuthEmail(user);
+
+  try {
+    let customer: Stripe.Customer | undefined;
+    if (email) {
+      const matches = await stripe.customers.list({ email, limit: 100 });
+      customer = matches.data.find((candidate) => candidate.metadata.user_id?.trim() === user.id);
+
+      if (!customer) {
+        const legacy = matches.data.find(
+          (candidate) =>
+            !candidate.metadata.user_id?.trim() &&
+            candidate.email?.trim().toLowerCase() === email,
+        );
+        if (legacy) {
+          customer = await stripe.customers.update(legacy.id, {
+            metadata: { user_id: user.id },
+          });
+        }
+      }
+    }
+
+    // Customers already bound to another application user are intentionally
+    // ignored. A separate customer is safer than adopting a foreign binding.
+    if (!customer) {
+      customer = await stripe.customers.create({
+        ...(email ? { email } : {}),
+        name,
+        metadata: { user_id: user.id },
+      });
+    }
+
+    await persistCustomerBinding(user.id, customer.id);
+    return { ok: true, customerId: customer.id };
+  } catch {
+    return { ok: false, error: BILLING_ACCOUNT_ERROR };
+  }
 }
 
 /**
@@ -70,7 +156,9 @@ export async function subscribeListing(listingId: string): Promise<Result> {
     return openBillingPortal();
   }
 
-  const customerId = await ensureCustomer(supabase, user.id, user.email);
+  const customer = await ensureCustomer(supabase, user);
+  if (!customer.ok) return customer;
+  const customerId = customer.customerId;
 
   // Pricing:
   //  • Additional unit (linked to a primary) → $10/yr — but only if its PRIMARY
@@ -206,9 +294,16 @@ export async function openBillingPortal(): Promise<Result> {
     return { ok: false, error: "No billing account yet. Subscribe a listing first." };
   }
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: profile.stripe_customer_id,
-    return_url: `${siteUrl()}/dashboard`,
-  });
-  return { ok: true, url: session.url };
+  const customer = await verifyStoredCustomer(user, profile.stripe_customer_id);
+  if (!customer.ok) return customer;
+
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customer.customerId,
+      return_url: `${siteUrl()}/dashboard`,
+    });
+    return { ok: true, url: session.url };
+  } catch {
+    return { ok: false, error: "Could not open the billing portal. Please try again." };
+  }
 }
