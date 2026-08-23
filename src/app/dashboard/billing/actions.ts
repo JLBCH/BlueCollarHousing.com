@@ -14,8 +14,24 @@ type CustomerResult =
   | { ok: true; customerId: string }
   | { ok: false; error: string };
 
+// verifyStoredCustomer can additionally signal that the stored binding is gone
+// (the Stripe customer no longer resolves or was deleted) so the caller can
+// transparently mint a fresh customer instead of hard-blocking the user.
+type VerifyStoredResult = CustomerResult | { ok: false; recreate: true };
+
 const BILLING_ACCOUNT_ERROR =
   "We could not verify your billing account. Please contact support before continuing.";
+
+/**
+ * True only for a genuinely-missing Stripe resource (test-mode customer id used
+ * against live keys, or a since-deleted customer). Any other failure — network,
+ * auth, rate limit — must NOT be treated as "gone".
+ */
+function isMissingResourceError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const e = error as { code?: unknown; statusCode?: unknown };
+  return e.code === "resource_missing" || e.statusCode === 404;
+}
 
 function verifiedAuthEmail(user: User): string | undefined {
   const email = user.email?.trim().toLowerCase();
@@ -33,10 +49,11 @@ async function persistCustomerBinding(userId: string, customerId: string): Promi
   if (error) throw new Error("Could not persist Stripe customer binding.");
 }
 
-async function verifyStoredCustomer(user: User, customerId: string): Promise<CustomerResult> {
+async function verifyStoredCustomer(user: User, customerId: string): Promise<VerifyStoredResult> {
   try {
     const customer = await stripe.customers.retrieve(customerId);
-    if (customer.deleted) return { ok: false, error: BILLING_ACCOUNT_ERROR };
+    // A deleted customer is gone, not a security problem → recreate a fresh one.
+    if (customer.deleted) return { ok: false, recreate: true };
 
     const boundUserId = customer.metadata.user_id?.trim();
     if (boundUserId) {
@@ -57,7 +74,11 @@ async function verifyStoredCustomer(user: User, customerId: string): Promise<Cus
     });
     await persistCustomerBinding(user.id, customer.id);
     return { ok: true, customerId: customer.id };
-  } catch {
+  } catch (error) {
+    // A stored id that no longer resolves (e.g. a test-mode customer after the
+    // switch to live keys) is gone, not a security problem → recreate. Every
+    // other error still fails closed.
+    if (isMissingResourceError(error)) return { ok: false, recreate: true };
     return { ok: false, error: BILLING_ACCOUNT_ERROR };
   }
 }
@@ -75,7 +96,11 @@ async function ensureCustomer(
   if (profileError) return { ok: false, error: BILLING_ACCOUNT_ERROR };
 
   if (profile?.stripe_customer_id) {
-    return verifyStoredCustomer(user, profile.stripe_customer_id);
+    const verified = await verifyStoredCustomer(user, profile.stripe_customer_id);
+    // Ok, or a real error (ownership mismatch / unexpected failure) → return it.
+    // Only a "recreate" signal falls through to mint a fresh customer below,
+    // overwriting the stale binding via persistCustomerBinding.
+    if (!("recreate" in verified)) return verified;
   }
 
   const name = profile?.full_name || undefined;
@@ -295,7 +320,14 @@ export async function openBillingPortal(): Promise<Result> {
   }
 
   const customer = await verifyStoredCustomer(user, profile.stripe_customer_id);
-  if (!customer.ok) return customer;
+  if (!customer.ok) {
+    // Stored customer is gone (e.g. test→live key switch): there is nothing to
+    // manage in the portal. A fresh customer is minted on the next subscribe.
+    if ("recreate" in customer) {
+      return { ok: false, error: "No billing account yet. Subscribe a listing first." };
+    }
+    return customer;
+  }
 
   try {
     const session = await stripe.billingPortal.sessions.create({

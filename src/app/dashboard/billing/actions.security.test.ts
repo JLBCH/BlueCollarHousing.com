@@ -152,13 +152,18 @@ describe("Stripe customer authorization", () => {
     expect(result).toEqual({ ok: true, url: "https://billing.stripe.test/session" });
   });
 
-  it("rejects a deleted stored customer", async () => {
+  it("does not open a portal for a deleted stored customer", async () => {
+    // A deleted customer is gone, not a security failure: the portal has nothing
+    // to manage (a fresh customer is minted on the next subscribe).
     mocks.retrieveCustomer.mockResolvedValue({ id: "cus_stored", deleted: true });
 
     const result = await openBillingPortal();
 
     expect(mocks.createPortal).not.toHaveBeenCalled();
-    expect(result).toEqual({ ok: false, error: BILLING_ACCOUNT_ERROR });
+    expect(result).toEqual({
+      ok: false,
+      error: "No billing account yet. Subscribe a listing first.",
+    });
   });
 
   it("rejects an unbound legacy customer whose email does not match", async () => {
@@ -244,6 +249,64 @@ describe("Stripe customer authorization", () => {
     const result = await openBillingPortal();
 
     expect(mocks.createPortal).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: BILLING_ACCOUNT_ERROR });
+  });
+
+  it("recreates the customer when the stored ID no longer exists in Stripe (test→live switch)", async () => {
+    // Live-mode Stripe throws resource_missing / 404 for a test-mode customer id.
+    const missing = Object.assign(new Error("No such customer: 'cus_stored'"), {
+      code: "resource_missing",
+      statusCode: 404,
+    });
+    mocks.retrieveCustomer.mockRejectedValue(missing);
+
+    const result = await subscribeListing("listing-1");
+
+    expect(mocks.retrieveCustomer).toHaveBeenCalledWith("cus_stored");
+    // Falls through to the create path and rebinds the profile to the new id.
+    expect(mocks.createCustomer).toHaveBeenCalled();
+    expect(mocks.persistProfile).toHaveBeenCalledWith(
+      { stripe_customer_id: "cus_created" },
+      "id",
+      "user-attacker",
+    );
+    expect(mocks.createCheckout).toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, url: "https://checkout.stripe.test/session" });
+  });
+
+  it("recreates the customer when the stored customer is deleted in Stripe", async () => {
+    mocks.retrieveCustomer.mockResolvedValue({ id: "cus_stored", deleted: true });
+
+    const result = await subscribeListing("listing-1");
+
+    expect(mocks.createCustomer).toHaveBeenCalled();
+    expect(mocks.persistProfile).toHaveBeenCalledWith(
+      { stripe_customer_id: "cus_created" },
+      "id",
+      "user-attacker",
+    );
+    expect(mocks.createCheckout).toHaveBeenCalled();
+    expect(result).toEqual({ ok: true, url: "https://checkout.stripe.test/session" });
+  });
+
+  it("never recreates (or adopts) a customer bound to a different user", async () => {
+    // Default retrieve() resolves a customer owned by "user-victim".
+    const result = await subscribeListing("listing-1");
+
+    expect(mocks.createCustomer).not.toHaveBeenCalled();
+    expect(mocks.updateCustomer).not.toHaveBeenCalled();
+    expect(mocks.persistProfile).not.toHaveBeenCalled();
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: BILLING_ACCOUNT_ERROR });
+  });
+
+  it("does not recreate on a generic (non-missing) Stripe retrieve error", async () => {
+    mocks.retrieveCustomer.mockRejectedValue(new Error("Stripe unavailable"));
+
+    const result = await subscribeListing("listing-1");
+
+    expect(mocks.createCustomer).not.toHaveBeenCalled();
+    expect(mocks.createCheckout).not.toHaveBeenCalled();
     expect(result).toEqual({ ok: false, error: BILLING_ACCOUNT_ERROR });
   });
 });
