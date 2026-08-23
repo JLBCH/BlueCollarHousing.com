@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, ArrowRight } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
@@ -72,12 +73,16 @@ export default async function PricingPage() {
         {/* two plans (single listing combines the per-unit add-on) */}
         <div className="mx-auto mt-12 grid max-w-[860px] gap-6 lg:grid-cols-2">
           {PLANS.map((p) => (
-            <div
+            // Whole card is a link to sign-up — landlords (RV park owners
+            // especially) read these tiers as clickable and were bouncing when
+            // they weren't. Signed-in users never reach this page (redirect above).
+            <Link
               key={p.name}
+              href="/register"
               className={
                 p.featured
-                  ? "relative flex flex-col rounded-card border-2 border-orange bg-white p-7 shadow-[0_12px_32px_rgba(232,85,31,0.16)]"
-                  : "relative flex flex-col rounded-card border border-line bg-white p-7"
+                  ? "group relative flex flex-col rounded-card border-2 border-orange bg-white p-7 shadow-[0_12px_32px_rgba(232,85,31,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(232,85,31,0.24)]"
+                  : "group relative flex flex-col rounded-card border border-line bg-white p-7 transition hover:-translate-y-0.5 hover:border-orange/60 hover:shadow-[0_10px_28px_rgba(16,32,48,0.12)]"
               }
             >
               {p.featured && (
@@ -105,7 +110,11 @@ export default async function PricingPage() {
                   </p>
                 </div>
               )}
-            </div>
+              <span className="mt-auto inline-flex items-center gap-1.5 pt-6 text-[15px] font-bold text-orange">
+                Get started
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </span>
+            </Link>
           ))}
         </div>
 
