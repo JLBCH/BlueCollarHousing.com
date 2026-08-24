@@ -65,7 +65,9 @@ export default async function BlogPage() {
                     src={p.coverImage}
                     alt=""
                     loading="lazy"
-                    className="h-[220px] w-full object-cover"
+                    // A fixed height crushed landscape covers into a ~5:1 strip
+                    // (heavy top/bottom crop). A 16:9 box keeps their real shape.
+                    className="aspect-[16/9] w-full object-cover"
                   />
                 )}
                 <div className="p-6">
