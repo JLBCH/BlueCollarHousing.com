@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { geocodeAddress } from "@/lib/geo";
 import { BUCKET, storagePath, subscriptionsToCancel } from "@/lib/listings/storage";
 import { scopeOwner } from "@/lib/listings/scope-owner";
-import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
+import { notifyAdminListingSubmitted, notifyAdminListingEdited } from "@/lib/email/listing-submit-notify";
 import { notifyAdminListingDeleted } from "@/lib/email/listing-deleted-notify";
 import { stripe } from "@/lib/stripe";
 import type { ListingInput } from "@/app/dashboard/listings/new/actions";
@@ -154,13 +154,16 @@ export async function updateListing(
     .filter((p): p is string => !!p);
   if (removedPaths.length) await supabase.storage.from(BUCKET).remove(removedPaths);
 
-  // Tell the admin for explicit submissions and for a published listing that
-  // the database automatically returned to review after a material owner edit.
-  const movedApprovedListingToReview =
-    ownerId !== null && prev.status === "approved" && data[0]?.status === "pending";
+  // A brand-new submission goes to the review queue. An owner editing a listing
+  // that is already live keeps it live (Option A) — we just send the admin a
+  // low-key FYI so revisions can be eyeballed without the listing disappearing.
   const submittedForReview = input.submit && data[0]?.status === "pending";
-  if (submittedForReview || movedApprovedListingToReview) {
+  const editedLiveListing =
+    ownerId !== null && prev.status === "approved" && data[0]?.status === "approved";
+  if (submittedForReview) {
     await notifyAdminListingSubmitted({ title: input.title, submitterEmail: user.email });
+  } else if (editedLiveListing) {
+    await notifyAdminListingEdited({ title: input.title, editorEmail: user.email });
   }
 
   revalidatePath("/dashboard");

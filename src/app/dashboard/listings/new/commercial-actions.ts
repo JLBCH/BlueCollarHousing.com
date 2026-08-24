@@ -6,7 +6,7 @@ import { geocodeAddress } from "@/lib/geo";
 import { BUCKET, storagePath } from "@/lib/listings/storage";
 import { slugify } from "@/lib/listings/slug";
 import { scopeOwner } from "@/lib/listings/scope-owner";
-import { notifyAdminListingSubmitted } from "@/lib/email/listing-submit-notify";
+import { notifyAdminListingSubmitted, notifyAdminListingEdited } from "@/lib/email/listing-submit-notify";
 import type { CommercialType } from "@/lib/listings/commercial-forms";
 
 export type CommercialInput = {
@@ -217,11 +217,15 @@ export async function updateCommercialListing(
     .filter((p): p is string => !!p);
   if (removed.length) await supabase.storage.from(BUCKET).remove(removed);
 
-  const movedApprovedListingToReview =
-    ownerId !== null && prev.status === "approved" && data[0]?.status === "pending";
+  // Option A: editing an already-live listing keeps it live; send the admin a
+  // low-key FYI instead of pulling it back into the review queue.
   const submittedForReview = input.submit && data[0]?.status === "pending";
-  if (submittedForReview || movedApprovedListingToReview) {
+  const editedLiveListing =
+    ownerId !== null && prev.status === "approved" && data[0]?.status === "approved";
+  if (submittedForReview) {
     await notifyAdminListingSubmitted({ title: input.name, submitterEmail: user.email, isCommercial: true });
+  } else if (editedLiveListing) {
+    await notifyAdminListingEdited({ title: input.name, editorEmail: user.email });
   }
   revalidatePath("/dashboard");
   return { ok: true };

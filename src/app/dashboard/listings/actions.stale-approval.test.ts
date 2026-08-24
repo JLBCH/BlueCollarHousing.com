@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   geocodeAddress: vi.fn(),
   scopeOwner: vi.fn(),
   notifySubmitted: vi.fn(),
+  notifyEdited: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
@@ -15,6 +16,7 @@ vi.mock("@/lib/geo", () => ({ geocodeAddress: mocks.geocodeAddress }));
 vi.mock("@/lib/listings/scope-owner", () => ({ scopeOwner: mocks.scopeOwner }));
 vi.mock("@/lib/email/listing-submit-notify", () => ({
   notifyAdminListingSubmitted: mocks.notifySubmitted,
+  notifyAdminListingEdited: mocks.notifyEdited,
 }));
 vi.mock("@/lib/stripe", () => ({
   stripe: { subscriptions: { cancel: vi.fn() } },
@@ -170,7 +172,10 @@ describe("updateListing approval concurrency", () => {
     expect(writtenPatch?.status).toBe("approved");
     expect(updateFilters).toContainEqual(["status", "approved"]);
     expect(updateFilters).toContainEqual(["reviewed_at", "2026-08-19T01:17:55.348Z"]);
+    // Option A: the listing stays live, so the owner's edit never re-enters the
+    // review queue — the admin gets the low-key "edited" FYI instead.
     expect(mocks.notifySubmitted).not.toHaveBeenCalled();
+    expect(mocks.notifyEdited).toHaveBeenCalled();
   });
 
   it("refuses an owner write when an admin decision changes after the status read", async () => {

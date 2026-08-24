@@ -42,3 +42,43 @@ export async function notifyAdminListingSubmitted(args: {
   const { subject, text } = buildListingSubmitNotification(args);
   await sendEmail({ to, subject, text });
 }
+
+/**
+ * Build the admin "a live listing was edited" heads-up. An owner editing an
+ * already-approved listing keeps it live (it is not pulled back into review),
+ * so this is an FYI, not a to-do: the listing is still public.
+ */
+export function buildListingEditedNotification(args: {
+  title: string;
+  editorEmail?: string | null;
+}): { subject: string; text: string } {
+  const title = args.title.trim() || "(untitled listing)";
+  const by = args.editorEmail?.trim() || "(unknown)";
+  return {
+    subject: `Live listing edited: ${title}`,
+    text: [
+      "A landlord edited a listing that is already approved and live.",
+      "The listing stays live — no action is required. Review it if you want.",
+      "",
+      `Listing: ${title}`,
+      `From:    ${by}`,
+      "",
+      `See it: ${SITE_URL}/admin`,
+    ].join("\n"),
+  };
+}
+
+/**
+ * Email the admin (CONTACT_NOTIFY_EMAIL) that an owner edited a live listing.
+ * Best-effort FYI; the listing is not removed from the site. No-op if no notify
+ * address is configured.
+ */
+export async function notifyAdminListingEdited(args: {
+  title: string;
+  editorEmail?: string | null;
+}): Promise<void> {
+  const to = notifyTo();
+  if (!to) return;
+  const { subject, text } = buildListingEditedNotification(args);
+  await sendEmail({ to, subject, text });
+}
