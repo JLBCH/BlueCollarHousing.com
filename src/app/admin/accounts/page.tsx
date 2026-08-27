@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { requireAdmin } from "@/lib/admin";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { DeleteAccountButton } from "@/components/admin/delete-account-button";
 
@@ -18,6 +19,14 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
+type EmailStatus = "verified" | "unverified" | "unknown";
+
+const EMAIL_STATUS_CHIPS: Record<EmailStatus, { label: string; className: string }> = {
+  verified: { label: "Verified", className: "bg-green-100 text-green-800" },
+  unverified: { label: "Unverified", className: "bg-amber-100 text-amber-800" },
+  unknown: { label: "Unknown", className: "bg-bg-band text-muted" },
+};
+
 export default async function AdminAccountsPage({
   searchParams,
 }: {
@@ -27,12 +36,11 @@ export default async function AdminAccountsPage({
   const { supabase } = await requireAdmin();
   const query = (q ?? "").trim();
 
-  // KPI counts.
-  const live = await supabase
+  const liveQuery = supabase
     .from("listings")
     .select("id", { count: "exact", head: true })
     .eq("status", "approved");
-  const pending = await supabase
+  const pendingQuery = supabase
     .from("listings")
     .select("id", { count: "exact", head: true })
     .eq("status", "pending");
@@ -48,14 +56,50 @@ export default async function AdminAccountsPage({
   if (safeQuery) {
     landlordQuery = landlordQuery.or(`full_name.ilike.%${safeQuery}%,email.ilike.%${safeQuery}%`);
   }
-  const { data: landlords } = await landlordQuery;
-  const rows = landlords ?? [];
-
-  // Listing counts per owner (small dataset — aggregate in app).
-  const { data: allListings } = await supabase
+  const allListingsQuery = supabase
     .from("listings")
     .select("owner_id, status")
     .not("owner_id", "is", null);
+
+  const [live, pending, { data: landlords }, { data: allListings }] = await Promise.all([
+    liveQuery,
+    pendingQuery,
+    landlordQuery,
+    allListingsQuery,
+  ]);
+  const rows = landlords ?? [];
+
+  // Profiles are created at signup, before email confirmation, so profile
+  // presence alone cannot tell an admin whether the address was verified.
+  // Keep this privileged Auth lookup server-side and degrade to "Unknown" if
+  // Auth is unavailable rather than incorrectly labelling anyone unverified.
+  const emailStatuses = new Map<string, "verified" | "unverified">();
+  try {
+    const adminClient = createAdminClient();
+    const remainingIds = new Set(rows.map((row) => row.id));
+    let page = 1;
+
+    while (remainingIds.size > 0) {
+      const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error) {
+        emailStatuses.clear();
+        break;
+      }
+
+      for (const user of data.users) {
+        if (remainingIds.delete(user.id)) {
+          emailStatuses.set(user.id, user.email_confirmed_at ? "verified" : "unverified");
+        }
+      }
+
+      if (!data.nextPage) break;
+      page = data.nextPage;
+    }
+  } catch {
+    emailStatuses.clear();
+  }
+
+  // Listing counts per owner (small dataset — aggregate in app).
   const counts = new Map<string, { live: number; pending: number }>();
   for (const l of allListings ?? []) {
     const c = counts.get(l.owner_id) ?? { live: 0, pending: 0 };
@@ -111,6 +155,7 @@ export default async function AdminAccountsPage({
                   <tr className="border-b border-line text-[12px] uppercase tracking-wide text-muted">
                     <th className="py-2 pr-3 font-bold">Name</th>
                     <th className="py-2 pr-3 font-bold">Email</th>
+                    <th className="py-2 pr-3 font-bold">Email status</th>
                     <th className="py-2 pr-3 font-bold">Listings</th>
                     <th className="py-2 pr-3 font-bold">Role</th>
                     <th className="py-2 font-bold text-right">Actions</th>
@@ -119,12 +164,21 @@ export default async function AdminAccountsPage({
                 <tbody className="divide-y divide-line">
                   {rows.map((r) => {
                     const c = counts.get(r.id) ?? { live: 0, pending: 0 };
+                    const emailStatus: EmailStatus = emailStatuses.get(r.id) ?? "unknown";
+                    const emailStatusChip = EMAIL_STATUS_CHIPS[emailStatus];
                     return (
                       <tr key={r.id}>
                         <td className="py-2.5 pr-3 font-semibold text-navy">{r.full_name || "—"}</td>
                         <td className="py-2.5 pr-3 text-ink">
                           {r.email}
                           {r.phone ? <span className="block text-[12px] text-muted">{r.phone}</span> : null}
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[12px] font-semibold ${emailStatusChip.className}`}
+                          >
+                            {emailStatusChip.label}
+                          </span>
                         </td>
                         <td className="py-2.5 pr-3 text-ink">
                           {c.live} live{c.pending ? ` · ${c.pending} pending` : ""}
